@@ -1,0 +1,30 @@
+{
+  "license": "0BSD",
+  "main": "index.js",
+  "homepage": "https://github.com/MECHS5103/Documentation",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "predeploy": "npx expo export --platform web && copy .nojekyll dist\\.nojekyll && copy 404.html dist\\404.html",
+    "deploy": "gh-pages -d dist --dotfiles"
+  },
+  "dependencies": {
+    "@expo-google-fonts/chewy": "*",
+    "@expo/vector-icons": "^15.0.3",
+    "expo": "~54.0.37",
+    "expo-av": "~16.0.8",
+    "expo-document-picker": "~14.0.8",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-paper": "4.9.2",
+    "react-native-web": "^0.21.0"
+  },
+  "private": true,
+  "devDependencies": {
+    "gh-pages": "^6.3.0"
+  }
+}
