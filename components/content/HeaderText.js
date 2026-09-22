@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Text, Pressable, TextInput } from 'react-native';
+import { Text, Pressable, TextInput, useWindowDimensions } from 'react-native';
 import styles from '../../styles';
 import useDoubleClick from '../../hooks/useDoubleClick';
 
 export const HeaderText = ({ title, onUpdate, setHasSaved, loggedIn }) => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+
   const [isEditing, setIsEditing] = useState(false);
   const [localText, setLocalText] = useState(title);
 
@@ -26,7 +29,12 @@ export const HeaderText = ({ title, onUpdate, setHasSaved, loggedIn }) => {
   if (isEditing) {
     return (
       <TextInput
-        style={[styles.HeaderPageText, styles.ActiveInput, { width: '100%' }]}
+        style={[
+          styles.HeaderPageText,
+          styles.ActiveInput,
+          isMobile && styles.TitleTextMobile,
+          { width: '100%' },
+        ]}
         value={localText}
         onChangeText={handleChange}
         onBlur={() => setIsEditing(false)}
@@ -42,7 +50,11 @@ export const HeaderText = ({ title, onUpdate, setHasSaved, loggedIn }) => {
       style={{ width: '100%', alignSelf: 'stretch' }}>
       <Text
         selectable={false}
-        style={[styles.HeaderPageText, { userSelect: 'none' }]}>
+        style={[
+          styles.HeaderPageText,
+          isMobile && styles.TitleTextMobile,
+          { userSelect: 'none' },
+        ]}>
         {localText}
       </Text>
     </Pressable>

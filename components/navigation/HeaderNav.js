@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, useWindowDimensions, StyleSheet } from 'react-native';
 import styles from '../../styles';
 import Header from './Header';
 import NavBar from './NavBar';
@@ -24,6 +24,7 @@ export const HeaderNav = ({
 
   return (
     <View style={styles.HeaderPage}>
+      {/* Header Container */}
       <Header
         navPanel={navPanel}
         setNavPanel={setNavPanel}
@@ -38,94 +39,73 @@ export const HeaderNav = ({
         setLoginVisible={setLoginVisible}
         lastName={lastName}
       />
-      <View style={{ flexDirection: 'row' }}>
-        <NavBar navPanel={navPanel} setNavPanel={setNavPanel} />
+
+      {/* Navigation Bar Row + Action Buttons */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#CBD5E1', zIndex: 30, marginLeft: 158 }}>
+        <NavBar navPanel={navPanel} setNavPanel={setNavPanel} style={{ borderTopLeftRadius: 100, borderTopWidth: 4, borderColor: '#1A202C' }} />
+
         {navPanel !== 'Landing Page' && loggedIn && (
-          <View style={{ marginLeft: -22, flex: 1, flexDirection: 'row' }}>
-            <View
-              style={{
-                flex: 1,
-                marginLeft: '15%',
-                paddingTop: '4%',
-              }}>
-              <Pressable
-                onPress={onSave}
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  flex: 1,
-                  borderRadius: 10,
-                  borderWidth: 3,
-                  borderBottomWidth: 5,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderColor: '#1A202C',
-                }}>
-                <Text style={{ fontFamily: 'Chewy' }}>Save</Text>
+          <View style={localStyles.actionButtonsContainer}>
+            <View style={localStyles.buttonWrapper}>
+              <Pressable onPress={onSave} style={localStyles.actionButton}>
+                <Text style={localStyles.buttonText}>Save</Text>
               </Pressable>
             </View>
-            <View
-              style={{
-                flex: 1,
-                marginLeft: '10%',
-                marginRight: '5%',
-                paddingTop: '4%',
-              }}>
+
+            <View style={localStyles.buttonWrapper}>
               <Pressable
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  flex: 1,
-                  borderRadius: 10,
-                  borderWidth: 3,
-                  borderBottomWidth: 5,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderColor: '#1A202C',
-                }}
+                style={localStyles.actionButton}
                 onPress={() => {
-                  window.location.reload();
+                  if (typeof window !== 'undefined') {
+                    window.location.reload();
+                  }
                 }}>
-                <Text style={{ fontFamily: 'Chewy' }}>Cancel</Text>
+                <Text style={localStyles.buttonText}>Cancel</Text>
               </Pressable>
             </View>
           </View>
         )}
       </View>
 
-      <View
-        style={[styles.HeaderBorder, isMobile && styles.HeaderBorderMobile]}
-      />
-      <View style={[styles.Square, isMobile && styles.Square1Mobile]} />
-      <View style={[styles.Square, isMobile && styles.Square2Mobile]} />
-      <View
-        style={[styles.InvertedCorner, isMobile && styles.InvertedCornerMobile]}
-      />
-      <View style={[styles.Square, isMobile && styles.Square3Mobile]} />
-      <View
-        style={[
-          styles.LogoBorder,
-          isMobile && styles.LogoBorderMobile,
-          navPanel !== 'Landing Page' &&
-            !isMobile && { width: 165, height: 40, top: 125 },
-          navPanel !== 'Landing Page' &&
-            isMobile && { width: 103, height: 25, top: 78 },
-        ]}
-      />
-      <View
-        style={[
-          styles.InvertedCorner2,
-          isMobile && styles.InvertedCorner2Mobile,
-        ]}
-      />
-      {navPanel === 'Landing Page' && (
-        <View
-          style={[
-            styles.InvertedCorner3,
-            isMobile && styles.InvertedCorner3Mobile,
-          ]}
-        />
+      {/* Desktop Decorative Accent Layer (Hidden on Mobile to eliminate gray bar glitches) */}
+      {!isMobile && (
+        <>
+          <View style={styles.HeaderBorder} />
+        </>
       )}
     </View>
   );
 };
+
+const localStyles = StyleSheet.create({
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+    flexShrink: 1,
+  },
+  buttonWrapper: {
+    paddingTop: 4,
+    marginRight: 8,
+    minWidth: 70,
+    height: 38,
+  },
+  actionButton: {
+    backgroundColor: '#FFFFFF',
+    flex: 1,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderBottomWidth: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderColor: '#1A202C',
+    paddingHorizontal: 8,
+  },
+  buttonText: {
+    fontFamily: 'Chewy',
+    fontSize: 14,
+    color: '#1A202C',
+  },
+});
 
 export default HeaderNav;

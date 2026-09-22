@@ -4,7 +4,7 @@ import styles from '../../styles';
 import GetStarted from './GetStarted';
 import MainNav from './MainNav';
 
-export const LandingPage = ({setNavPanel}) => (
+export const LandingPage = ({ setNavPanel }) => (
   <View style={styles.LandingPage}>
     <GetStarted />
     <MainNav setNavPanel={setNavPanel} />

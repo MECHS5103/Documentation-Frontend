@@ -7,15 +7,26 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
+  useWindowDimensions,
 } from 'react-native';
 import styles from '../../styles';
 
-export const SubjectText = ({ text }) => (
-  <Text style={styles.SubjectText}>{text}</Text>
+export const SubjectText = ({ text, isMobile }) => (
+  <Text style={isMobile ? styles.SubjectTextMobile : styles.SubjectText}>
+    {text}
+  </Text>
 );
 
-export const LessonText = ({ text, style }) => (
-  <Text style={[styles.LessonText, style]}>{text}</Text>
+export const LessonText = ({ text, style, isMobile, isActive }) => (
+  <Text
+    style={[
+      styles.LessonText,
+      isMobile && styles.LessonTextMobile,
+      isMobile && isActive && styles.LessonTextActiveMobile,
+      style,
+    ]}>
+    {text}
+  </Text>
 );
 
 const parseFlatDataToNested = (flatData = []) => {
@@ -57,13 +68,18 @@ export const TableOfContents = ({
   onSelectLesson,
   loggedIn = false,
   onUpdateTocData,
-  onSave, // Optional: pass handleSave from App.js if you want it to trigger an immediate network save
+  onSave,
+  useBottomToggle = false,
 }) => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+
   const [isEditing, setIsEditing] = useState(false);
   const [draftSubjects, setDraftSubjects] = useState([]);
   const [newSubjectText, setNewSubjectText] = useState('');
   const [addingLessonForSubject, setAddingLessonForSubject] = useState(null);
   const [newLessonText, setNewLessonText] = useState('');
+  const [mobileExpanded, setMobileExpanded] = useState(false);
 
   const displaySubjects = isEditing
     ? draftSubjects
@@ -74,17 +90,13 @@ export const TableOfContents = ({
     setIsEditing(true);
   };
 
-  // TableOfContents.js
-
   const handleSaveEdit = () => {
     const flattened = flattenNestedToFlat(draftSubjects);
 
-    // 1. Update React state
     if (onUpdateTocData) {
       onUpdateTocData(flattened);
     }
 
-    // 2. Immediately send the FRESH flattened array to Google Sheets
     if (onSave) {
       onSave(flattened);
     }
@@ -168,213 +180,267 @@ export const TableOfContents = ({
   };
 
   return (
-    <View style={styles.TableOfContents}>
-      {/* Header Container */}
-      <View style={tocStyles.headerContainer}>
-        <Text style={tocStyles.headerTitle}>{currentCategory} - Contents</Text>
+    <View style={{ width: '100%' }}>
+      {/* 1. Mobile Menu Button */}
+      {isMobile && !useBottomToggle && (
+        <TouchableOpacity
+          style={styles.TocToggleBtn}
+          activeOpacity={0.8}
+          onPress={() => setMobileExpanded(!mobileExpanded)}>
+          <Text style={styles.TocToggleText}>≡ Table of Contents</Text>
+          <Text style={{ color: '#FFFFFF', fontSize: 16 }}>
+            {mobileExpanded ? '▼' : '▲'}
+          </Text>
+        </TouchableOpacity>
+      )}
 
-        {loggedIn && (
-          <View style={tocStyles.headerBtnRow}>
-            {!isEditing ? (
-              <TouchableOpacity
-                style={tocStyles.editToggleBtn}
-                onPress={handleStartEdit}>
-                <Text style={tocStyles.editToggleText}>Edit TOC</Text>
-              </TouchableOpacity>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={[tocStyles.editToggleBtn, tocStyles.cancelBtn]}
-                  onPress={handleCancelEdit}>
-                  <Text
-                    style={[tocStyles.editToggleText, { color: '#E53E3E' }]}>
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[tocStyles.editToggleBtn, tocStyles.doneBtn]}
-                  onPress={handleSaveEdit}>
-                  <Text
-                    style={[tocStyles.editToggleText, { color: '#FFFFFF' }]}>
-                    Done & Save
-                  </Text>
-                </TouchableOpacity>
-              </>
+      {/* 2. TOC Card Container */}
+      {(!isMobile || mobileExpanded) && (
+        <View
+          style={[
+            styles.TableOfContents,
+            isMobile && styles.TableOfContentsMobile,
+          ]}>
+          {/* Header Row */}
+          <View style={tocStyles.headerContainer}>
+            {!isMobile && (
+              <Text style={tocStyles.headerTitle}>
+                {currentCategory} - Contents
+              </Text>
             )}
-          </View>
-        )}
-      </View>
 
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}>
-        {displaySubjects.map((subject, sIndex) => {
-          return (
-            <View key={sIndex} style={tocStyles.subjectWrapper}>
-              {/* Subject Title & Actions */}
-              <View style={tocStyles.itemRow}>
-                <View style={{ flex: 1, paddingRight: 4 }}>
-                  <SubjectText text={subject.text} />
-                </View>
-
-                {isEditing && (
-                  <View style={tocStyles.actionGroup}>
+            {loggedIn && (
+              <View style={tocStyles.headerBtnRow}>
+                {!isEditing ? (
+                  <TouchableOpacity
+                    style={tocStyles.editToggleBtn}
+                    onPress={handleStartEdit}>
+                    <Text style={tocStyles.editToggleText}>Edit TOC</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <>
                     <TouchableOpacity
-                      disabled={sIndex === 0}
-                      style={[
-                        tocStyles.arrowBtn,
-                        sIndex === 0 && { opacity: 0.2 },
-                      ]}
-                      onPress={() => handleMoveSubject(sIndex, -1)}>
-                      <Text style={tocStyles.arrowText}>▲</Text>
+                      style={[tocStyles.editToggleBtn, tocStyles.cancelBtn]}
+                      onPress={handleCancelEdit}>
+                      <Text
+                        style={[tocStyles.editToggleText, { color: '#E53E3E' }]}>
+                        Cancel
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      disabled={sIndex === displaySubjects.length - 1}
-                      style={[
-                        tocStyles.arrowBtn,
-                        sIndex === displaySubjects.length - 1 && {
-                          opacity: 0.2,
-                        },
-                      ]}
-                      onPress={() => handleMoveSubject(sIndex, 1)}>
-                      <Text style={tocStyles.arrowText}>▼</Text>
+                      style={[tocStyles.editToggleBtn, tocStyles.doneBtn]}
+                      onPress={handleSaveEdit}>
+                      <Text
+                        style={[tocStyles.editToggleText, { color: '#FFFFFF' }]}>
+                        Done & Save
+                      </Text>
                     </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={tocStyles.addLessonSmallBtn}
-                      onPress={() => {
-                        setAddingLessonForSubject(
-                          addingLessonForSubject === sIndex ? null : sIndex
-                        );
-                        setNewLessonText('');
-                      }}>
-                      <Text style={tocStyles.addLessonSmallText}>+</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={tocStyles.deleteBtn}
-                      onPress={() => handleDeleteSubject(sIndex)}>
-                      <Text style={tocStyles.deleteBtnText}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
+                  </>
                 )}
               </View>
-
-              {/* Add Lesson Input */}
-              {isEditing && addingLessonForSubject === sIndex && (
-                <View style={tocStyles.stackedInputBox}>
-                  <TextInput
-                    style={tocStyles.textInput}
-                    placeholder="Lesson name..."
-                    placeholderTextColor="#A0AEC0"
-                    value={newLessonText}
-                    onChangeText={setNewLessonText}
-                  />
-                  <TouchableOpacity
-                    style={tocStyles.fullWidthAddBtn}
-                    onPress={() => handleAddLesson(sIndex)}>
-                    <Text style={tocStyles.addBtnText}>+ Add Lesson</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Lessons List */}
-              <View style={styles.LessonContainer}>
-                {subject.lessons.map((lesson, lIndex) => {
-                  const isActive = lesson.text === activeLesson;
-                  return (
-                    <View key={lIndex} style={tocStyles.itemRow}>
-                      <Pressable
-                        style={{ flex: 1, paddingRight: 4 }}
-                        onPress={() => {
-                          if (!isEditing) {
-                            onSelectLesson(subject.text, lesson.text);
-                          }
-                        }}>
-                        <LessonText
-                          text={lesson.text}
-                          style={isActive ? { color: '#207ADB' } : null}
-                        />
-                      </Pressable>
-
-                      {isEditing && (
-                        <View style={tocStyles.actionGroup}>
-                          <TouchableOpacity
-                            disabled={lIndex === 0}
-                            style={[
-                              tocStyles.arrowBtn,
-                              lIndex === 0 && { opacity: 0.2 },
-                            ]}
-                            onPress={() =>
-                              handleMoveLesson(sIndex, lIndex, -1)
-                            }>
-                            <Text style={tocStyles.arrowText}>▲</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            disabled={lIndex === subject.lessons.length - 1}
-                            style={[
-                              tocStyles.arrowBtn,
-                              lIndex === subject.lessons.length - 1 && {
-                                opacity: 0.2,
-                              },
-                            ]}
-                            onPress={() => handleMoveLesson(sIndex, lIndex, 1)}>
-                            <Text style={tocStyles.arrowText}>▼</Text>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={tocStyles.deleteBtn}
-                            onPress={() => handleDeleteLesson(sIndex, lIndex)}>
-                            <Text style={tocStyles.deleteBtnText}>✕</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          );
-        })}
-
-        {/* Add Section Box */}
-        {isEditing && (
-          <View style={tocStyles.addSectionBox}>
-            <TextInput
-              style={tocStyles.textInput}
-              placeholder="New section name..."
-              placeholderTextColor="#A0AEC0"
-              value={newSubjectText}
-              onChangeText={setNewSubjectText}
-            />
-            <TouchableOpacity
-              style={tocStyles.fullWidthAddBtn}
-              onPress={handleAddSubject}>
-              <Text style={tocStyles.addBtnText}>+ Add Section</Text>
-            </TouchableOpacity>
+            )}
           </View>
-        )}
-      </ScrollView>
+
+          {/* 3. Inner List ScrollView */}
+          <ScrollView
+            nestedScrollEnabled={true}
+            bounces={false}
+            overScrollMode="never"
+            showsVerticalScrollIndicator={true}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: 20 }}>
+            {displaySubjects.map((subject, sIndex) => {
+              return (
+                <View
+                  key={sIndex}
+                  style={[
+                    tocStyles.subjectWrapper,
+                    isMobile && styles.SubjectContainerMobile,
+                  ]}>
+                  <View style={tocStyles.itemRow}>
+                    <View style={{ flex: 1, paddingRight: 4 }}>
+                      <SubjectText text={subject.text} isMobile={isMobile} />
+                    </View>
+
+                    {isEditing && (
+                      <View style={tocStyles.actionGroup}>
+                        <TouchableOpacity
+                          disabled={sIndex === 0}
+                          style={[
+                            tocStyles.arrowBtn,
+                            sIndex === 0 && { opacity: 0.2 },
+                          ]}
+                          onPress={() => handleMoveSubject(sIndex, -1)}>
+                          <Text style={tocStyles.arrowText}>▲</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          disabled={sIndex === displaySubjects.length - 1}
+                          style={[
+                            tocStyles.arrowBtn,
+                            sIndex === displaySubjects.length - 1 && {
+                              opacity: 0.2,
+                            },
+                          ]}
+                          onPress={() => handleMoveSubject(sIndex, 1)}>
+                          <Text style={tocStyles.arrowText}>▼</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={tocStyles.addLessonSmallBtn}
+                          onPress={() => {
+                            setAddingLessonForSubject(
+                              addingLessonForSubject === sIndex ? null : sIndex
+                            );
+                            setNewLessonText('');
+                          }}>
+                          <Text style={tocStyles.addLessonSmallText}>+</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={tocStyles.deleteBtn}
+                          onPress={() => handleDeleteSubject(sIndex)}>
+                          <Text style={tocStyles.deleteBtnText}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+
+                  {isEditing && addingLessonForSubject === sIndex && (
+                    <View style={tocStyles.stackedInputBox}>
+                      <TextInput
+                        style={tocStyles.textInput}
+                        placeholder="Lesson name..."
+                        placeholderTextColor="#A0AEC0"
+                        value={newLessonText}
+                        onChangeText={setNewLessonText}
+                      />
+                      <TouchableOpacity
+                        style={tocStyles.fullWidthAddBtn}
+                        onPress={() => handleAddLesson(sIndex)}>
+                        <Text style={tocStyles.addBtnText}>+ Add Lesson</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  <View
+                    style={[
+                      styles.LessonContainer,
+                      isMobile && styles.LessonContainerMobile,
+                    ]}>
+                    {subject.lessons.map((lesson, lIndex) => {
+                      const isActive = lesson.text === activeLesson;
+                      return (
+                        <View key={lIndex} style={tocStyles.itemRow}>
+                          <Pressable
+                            style={[
+                              { flex: 1 },
+                              isMobile && styles.LessonItemPillMobile,
+                              isMobile &&
+                                isActive &&
+                                styles.LessonItemPillActiveMobile,
+                            ]}
+                            onPress={() => {
+                              if (!isEditing) {
+                                onSelectLesson(subject.text, lesson.text);
+                                if (isMobile) setMobileExpanded(false);
+                              }
+                            }}>
+                            <LessonText
+                              text={lesson.text}
+                              isMobile={isMobile}
+                              isActive={isActive}
+                              style={
+                                !isMobile && isActive
+                                  ? { color: '#207ADB', fontWeight: 'bold' }
+                                  : null
+                              }
+                            />
+                          </Pressable>
+
+                          {isEditing && (
+                            <View style={tocStyles.actionGroup}>
+                              <TouchableOpacity
+                                disabled={lIndex === 0}
+                                style={[
+                                  tocStyles.arrowBtn,
+                                  lIndex === 0 && { opacity: 0.2 },
+                                ]}
+                                onPress={() =>
+                                  handleMoveLesson(sIndex, lIndex, -1)
+                                }>
+                                <Text style={tocStyles.arrowText}>▲</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                disabled={
+                                  lIndex === subject.lessons.length - 1
+                                }
+                                style={[
+                                  tocStyles.arrowBtn,
+                                  lIndex === subject.lessons.length - 1 && {
+                                    opacity: 0.2,
+                                  },
+                                ]}
+                                onPress={() =>
+                                  handleMoveLesson(sIndex, lIndex, 1)
+                                }>
+                                <Text style={tocStyles.arrowText}>▼</Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={tocStyles.deleteBtn}
+                                onPress={() =>
+                                  handleDeleteLesson(sIndex, lIndex)
+                                }>
+                                <Text style={tocStyles.deleteBtnText}>✕</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            })}
+
+            {isEditing && (
+              <View style={tocStyles.addSectionBox}>
+                <TextInput
+                  style={tocStyles.textInput}
+                  placeholder="New section name..."
+                  placeholderTextColor="#A0AEC0"
+                  value={newSubjectText}
+                  onChangeText={setNewSubjectText}
+                />
+                <TouchableOpacity
+                  style={tocStyles.fullWidthAddBtn}
+                  onPress={handleAddSubject}>
+                  <Text style={tocStyles.addBtnText}>+ Add Section</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      )}
     </View>
   );
 };
 
 const tocStyles = StyleSheet.create({
   headerContainer: {
-    marginBottom: 12,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#CBD5E1',
+    marginBottom: 8,
+    paddingBottom: 4,
   },
   headerTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: 'Chewy',
+    fontSize: 16,
     color: '#1E293B',
     marginBottom: 6,
   },
   headerBtnRow: {
     flexDirection: 'row',
     gap: 6,
+    marginBottom: 6,
   },
   editToggleBtn: {
     backgroundColor: '#E2E8F0',
@@ -398,7 +464,7 @@ const tocStyles = StyleSheet.create({
     color: '#334155',
   },
   subjectWrapper: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   itemRow: {
     flexDirection: 'row',
@@ -411,6 +477,7 @@ const tocStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
+    marginLeft: 6,
   },
   arrowBtn: {
     paddingHorizontal: 3,
@@ -453,8 +520,8 @@ const tocStyles = StyleSheet.create({
     gap: 4,
   },
   addSectionBox: {
-    marginTop: 16,
-    paddingTop: 12,
+    marginTop: 12,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#CBD5E1',
     gap: 6,

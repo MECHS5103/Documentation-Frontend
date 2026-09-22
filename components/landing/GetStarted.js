@@ -8,7 +8,7 @@ export const GetStarted = () => {
   const isMobile = width < 768;
 
   return (
-    <View style={isMobile && { marginTop: 65 }}>
+    <View style={{ marginTop: 85 }}>
       <Text style={[styles.WelcomeText, isMobile && styles.WelcomeTextMobile]}>
         Welcome to MECH & Cheese Documentation
       </Text>

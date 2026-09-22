@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Documentation Mobile Layout</title>
+  <link href="https://fonts.googleapis.com/css2?family=Chewy&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background-color: #cbd5e1;
+      color: #1e293b;
+    }
+
+    /* Top Navigation Bar */
+    .top-bar {
+      background-color: #207adb;
+      color: white;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      font-family: 'Chewy', cursive;
+      font-size: 28px;
+    }
+
+    .login-btn {
+      font-weight: 800;
+      font-size: 14px;
+      color: white;
+      text-decoration: none;
+    }
+
+    /* Category Navigation */
+    .category-nav {
+      background-color: #1e293b;
+      display: flex;
+      overflow-x: auto;
+      white-space: nowrap;
+      padding: 8px 12px;
+      gap: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .category-tab {
+      font-family: 'Chewy', cursive;
+      color: white;
+      font-size: 18px;
+      padding: 6px 14px;
+      border-radius: 12px;
+      text-decoration: none;
+      background-color: transparent;
+    }
+
+    .category-tab.active {
+      background-color: #334155;
+    }
+
+    /* App Layout Container */
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      min-height: calc(100vh - 100px);
+    }
+
+    /* 1. Stylized TOC Toggle Button (Mobile) */
+    .toc-toggle {
+      font-family: 'Chewy', cursive;
+      font-size: 18px;
+      background-color: #207adb;
+      color: white;
+      border: 3px solid #1e293b;
+      border-radius: 14px;
+      padding: 10px 16px;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.15);
+      transition: background-color 0.2s ease;
+    }
+
+    .toc-toggle:active {
+      background-color: #1d4ed8;
+    }
+
+    /* 2. Stylized TOC Card Container */
+    .sidebar {
+      background-color: #ffffff;
+      border: 3px solid #1e293b;
+      border-radius: 16px;
+      margin-top: 10px;
+      padding: 16px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+
+    .toc-section {
+      margin-bottom: 16px;
+    }
+
+    .toc-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .toc-section-title {
+      font-family: 'Chewy', cursive;
+      font-size: 20px;
+      color: #475569;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .toc-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .toc-item {
+      display: block;
+      text-decoration: none;
+      font-weight: 800;
+      font-size: 15px;
+      color: #207adb;
+      background-color: #f8fafc;
+      border: 2px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 8px 12px;
+      transition: all 0.15s ease;
+    }
+
+    .toc-item.active {
+      background-color: #207adb;
+      color: #ffffff;
+      border-color: #1e293b;
+    }
+
+    .toc-item:active {
+      transform: scale(0.98);
+    }
+
+    /* Main Content Area */
+    .content {
+      flex: 1;
+      padding-top: 16px;
+      max-width: 800px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .lesson-title {
+      font-family: 'Chewy', cursive;
+      font-size: 28px;
+      margin-bottom: 16px;
+    }
+
+    /* Rounded Content Pills */
+    .pill {
+      background: white;
+      border: 3px solid #1e293b;
+      border-radius: 16px;
+      margin-bottom: 16px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+
+    .pill-header {
+      font-family: 'Chewy', cursive;
+      font-size: 18px;
+      padding: 4px 16px;
+      color: white;
+      display: inline-block;
+      border-bottom-right-radius: 12px;
+    }
+
+    .pill-warning .pill-header { background-color: #f97316; }
+    .pill-important .pill-header { background-color: #1e293b; }
+    .pill-contributors .pill-header { background-color: #0d9488; }
+
+    .pill-body {
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* Contributor Badges Grid */
+    .contributors-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 8px;
+      padding-top: 8px;
+    }
+
+    .badge {
+      background-color: #f1f5f9;
+      border: 2px solid #1e293b;
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 13px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    /* Desktop View Overrides */
+    @media (min-width: 768px) {
+      .app-container {
+        flex-direction: row;
+        gap: 20px;
+        padding: 24px;
+      }
+
+      .toc-toggle {
+        display: none;
+      }
+
+      .sidebar {
+        width: 260px;
+        margin-top: 0;
+        align-self: flex-start;
+      }
+
+      .content {
+        padding-top: 0;
+      }
+
+      .lesson-title {
+        font-size: 32px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <div class="top-bar">
+    <div class="brand">Documentation</div>
+    <a href="#" class="login-btn">Login</a>
+  </div>
+
+  <!-- Category Selection Bar -->
+  <nav class="category-nav">
+    <a href="#" class="category-tab active">Mechanical</a>
+    <a href="#" class="category-tab">Build</a>
+    <a href="#" class="category-tab">Design</a>
+    <a href="#" class="category-tab">Programming</a>
+    <a href="#" class="category-tab">Electrical</a>
+    <a href="#" class="category-tab">Media</a>
+    <a href="#" class="category-tab">Other</a>
+  </nav>
+
+  <div class="app-container">
+    
+    <!-- Mobile Menu Toggle Button -->
+    <button class="toc-toggle">
+      <span>☰ Contents Menu</span>
+      <span style="font-size: 14px;">▼</span>
+    </button>
+    
+    <!-- Stylized Table of Contents Card -->
+    <aside class="sidebar">
+      <div class="toc-section">
+        <div class="toc-section-title">INTRODUCTION</div>
+        <div class="toc-list">
+          <a href="#" class="toc-item">The Basics</a>
+          <a href="#" class="toc-item">Drivetrain</a>
+          <a href="#" class="toc-item">Sensors</a>
+        </div>
+      </div>
+
+      <div class="toc-section">
+        <div class="toc-section-title">SWERVE</div>
+        <div class="toc-list">
+          <a href="#" class="toc-item">Architecture and Constants</a>
+          <a href="#" class="toc-item active">The Swerve Module</a>
+          <a href="#" class="toc-item">The Drive Subsystem</a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Page Content -->
+    <main class="content">
+      <h1 class="lesson-title">S - Woohoo</h1>
+
+      <div class="pill pill-warning">
+        <div class="pill-header">Warning</div>
+        <div class="pill-body">New description text...</div>
+      </div>
+
+      <div class="pill pill-important">
+        <div class="pill-header">Important</div>
+        <div class="pill-body">New description text...</div>
+      </div>
+
+      <div class="pill pill-contributors">
+        <div class="pill-header">Contributors</div>
+        <div class="pill-body">
+          <div class="contributors-grid">
+            <div class="badge">👤 Kade Dressing</div>
+            <div class="badge">👤 Cash Dodson</div>
+            <div class="badge">👤 Noland Judkins</div>
+            <div class="badge">👤 Stone Stanford</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+</body>
+</html>

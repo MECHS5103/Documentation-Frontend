@@ -1,4 +1,3 @@
-// components/pills/VideoPill.js
 import React, { useState } from 'react';
 import {
   View,
@@ -7,7 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
@@ -23,6 +22,9 @@ export const VideoPill = ({
   setHasSaved,
   loggedIn = false,
 }) => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
@@ -51,7 +53,6 @@ export const VideoPill = ({
         onUpdateVideoUrl(downloadURL);
       }
 
-
       if (setHasSaved) {
         setHasSaved(false);
       }
@@ -64,7 +65,7 @@ export const VideoPill = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isMobile && { maxWidth: '100%' }]}>
       {/* Title */}
       <View style={styles.header}>
         {loggedIn ? (
@@ -83,7 +84,7 @@ export const VideoPill = ({
         )}
       </View>
 
-      {/* Static 16:9 Pill Container (Left Aligned) */}
+      {/* Static 16:9 Pill Container */}
       <View style={styles.videoWrapper}>
         {videoUrl ? (
           <Video
@@ -157,7 +158,7 @@ const styles = StyleSheet.create({
     shadowRadius: 1.41,
     maxWidth: 650,
     width: '100%',
-    alignSelf: 'flex-start', // Left aligns the main pill container
+    alignSelf: 'flex-start',
   },
   header: {
     marginBottom: 6,
@@ -187,7 +188,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-    alignSelf: 'flex-start', // Left aligns the video wrapper box
+    alignSelf: 'flex-start',
   },
   videoPlayer: {
     width: '100%',

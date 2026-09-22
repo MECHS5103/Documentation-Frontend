@@ -9,27 +9,29 @@ export const NavBar = ({ navPanel, setNavPanel }) => {
   const isMobile = width < 768;
 
   return (
-    <View style={[styles.NavBar, isMobile && styles.NavBarMobile]}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.NavBarScrollContainer}>
-        {categories.map((item, index) => (
+    <View style={{ flexDirection: 'row', backgroundColor: '#207ADB', alignSelf: 'flex-start', borderBottomRightRadius: 100 }}>
+      <View style={[styles.NavBar, isMobile && styles.NavBarMobile]}>
+        <ScrollView
+          horizontal={true}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.NavBarScrollContainer}>
+          {categories.map((item, index) => (
+            <TextButton
+              key={index}
+              text={item}
+              textStyle={[styles.NavBarText, isMobile && styles.NavBarTextMobile]}
+              containerStyle={styles.NavBarButton}
+              setNavPanel={setNavPanel}
+            />
+          ))}
           <TextButton
-            key={index}
-            text={item}
+            text={'Other'}
             textStyle={[styles.NavBarText, isMobile && styles.NavBarTextMobile]}
             containerStyle={styles.NavBarButton}
             setNavPanel={setNavPanel}
           />
-        ))}
-        <TextButton
-          text={'Other'}
-          textStyle={[styles.NavBarText, isMobile && styles.NavBarTextMobile]}
-          containerStyle={styles.NavBarButton}
-          setNavPanel={setNavPanel}
-        />
-      </ScrollView>
+        </ScrollView>
+      </View>
     </View>
   );
 };

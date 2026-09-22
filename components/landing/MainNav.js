@@ -3,32 +3,19 @@ import { FlatList, Pressable, Text, useWindowDimensions } from 'react-native';
 import styles from '../../styles';
 import { categories, descriptions } from '../../constants/categories';
 
-export const NavigationPill = ({ text, index, setNavPanel }) => {
-  console.log("NavigationPill setNavPanel type:", typeof setNavPanel); // 👈 Add this line
-
-  return (
-    <Pressable
-      style={styles.NavPill}
-      onPress={() => {
-        if (typeof setNavPanel === 'function') {
-          setNavPanel(text);
-        } else {
-          console.error("CRITICAL: setNavPanel is NOT a function!", setNavPanel);
-        }
-      }}
-    >
-      <Text style={styles.NavPillText} numberOfLines={1} adjustsFontSizeToFit>
-        {text}
-      </Text>
-      <Text
-        style={styles.NavPillDescription}
-        numberOfLines={2}
-        adjustsFontSizeToFit>
-        {descriptions[index]}
-      </Text>
-    </Pressable>
-  );
-};
+export const NavigationPill = ({ text, index, setNavPanel }) => (
+  <Pressable style={styles.NavPill} onPress={() => setNavPanel(text)}>
+    <Text style={styles.NavPillText} numberOfLines={1} adjustsFontSizeToFit>
+      {text}
+    </Text>
+    <Text
+      style={styles.NavPillDescription}
+      numberOfLines={2}
+      adjustsFontSizeToFit>
+      {descriptions[index]}
+    </Text>
+  </Pressable>
+);
 
 export const MainNav = ({ setNavPanel }) => {
   const { width } = useWindowDimensions();

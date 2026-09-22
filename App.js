@@ -6,6 +6,7 @@ import {
   StatusBar,
   TouchableOpacity,
   Text,
+  useWindowDimensions,
 } from 'react-native';
 import { useFonts, Chewy_400Regular } from '@expo-google-fonts/chewy';
 
@@ -39,13 +40,15 @@ export default function App() {
     Chewy: Chewy_400Regular,
   });
 
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+
   const [tocData, setTocData] = useState([]);
   const [pageElements, setPageElements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hasSaved, setHasSaved] = useState(true);
   const [requestPageChange, setRequestPageChange] = useState(null);
 
-  // Persist loggedIn state across page refreshes
   const [loggedIn, setLoggedIn] = useState(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       return localStorage.getItem('is_logged_in') === 'true';
@@ -53,7 +56,6 @@ export default function App() {
     return false;
   });
 
-  // Initialize username from localStorage
   const [username, setUsername] = useState(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       return localStorage.getItem('user_username') || '';
@@ -64,7 +66,6 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [loginVisible, setLoginVisible] = useState(false);
 
-  // Initialize lastName from localStorage
   const [lastName, setLastName] = useState(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       return localStorage.getItem('user_last_name') || '';
@@ -74,11 +75,10 @@ export default function App() {
 
   const [pageCredits, setPageCredits] = useState([]);
 
-  // Parse clean pathnames or 404 query redirects and check if it's an explicit URL request
   const parseCurrentUrl = () => {
-    if (typeof window === 'undefined') return { panel: 'Landing Page', section: '', lesson: '', isExplicit: false };
+    if (typeof window === 'undefined')
+      return { panel: 'Landing Page', section: '', lesson: '', isExplicit: false };
 
-    // 1. Check if redirected via the 404.html query parameter (?p=...)
     const params = new URLSearchParams(window.location.search);
     const p = params.get('p');
     if (p) {
@@ -91,16 +91,13 @@ export default function App() {
       };
     }
 
-    // 2. Check direct clean pathname (e.g., /Documentation/Programming/Swerve/Swerve-Module)
     const pathname = window.location.pathname;
-    const segments = pathname.split('/').filter(Boolean); // ['Documentation', 'Programming', ...]
+    const segments = pathname.split('/').filter(Boolean);
 
-    // Remove the GitHub repository name segment ('Documentation') if present
     if (segments.length > 0 && segments[0].toLowerCase() === 'documentation') {
       segments.shift();
     }
 
-    // If nothing follows the root, explicitly return Landing Page as an explicit request
     if (segments.length === 0) {
       return { panel: 'Landing Page', section: '', lesson: '', isExplicit: true };
     }
@@ -115,12 +112,10 @@ export default function App() {
 
   const initialRoute = parseCurrentUrl();
 
-  // Strict URL priority: If a URL was explicitly provided, ignore localStorage completely.
   const [navPanel, setNavPanel] = useState(() => {
     if (initialRoute.isExplicit) {
-      return initialRoute.panel; // Respect whatever is in the URL (Landing Page or subpage)
+      return initialRoute.panel;
     }
-    // Only fall back to localStorage if they just opened a blank app tab without a typed URL
     if (typeof window !== 'undefined' && window.localStorage) {
       return localStorage.getItem('last_navPanel') || 'Landing Page';
     }
@@ -158,7 +153,6 @@ export default function App() {
     setLoading,
   });
 
-  // Listen to manual URL changes or browser back/forward buttons
   useEffect(() => {
     const handlePopState = () => {
       const route = parseCurrentUrl();
@@ -183,12 +177,10 @@ export default function App() {
           }
         }
       }
-      // Update browser URL cleanly
       window.history.pushState({ path: newPath }, '', newPath);
     }
   }, [navPanel, activeSection, activeLesson]);
 
-  // Persist navigation and user states to localStorage
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       localStorage.setItem('last_navPanel', navPanel);
@@ -209,7 +201,6 @@ export default function App() {
     }
   }, [navPanel, activeSection, activeLesson, username, lastName]);
 
-  // Sync pageCredits state safely whenever pageElements updates
   useEffect(() => {
     const creditsElement = pageElements.find((item) => item.type === 'Credits');
     if (creditsElement) {
@@ -239,20 +230,19 @@ export default function App() {
 
       const result = await response.json();
 
-      if (result.status == 'success') {
+      if (result.status === 'success') {
         setLastName(result.message);
         if (typeof window !== 'undefined' && window.localStorage) {
           setLastName(result.message);
           localStorage.setItem('user_last_name', result.message);
-          alert("Last name updated to: " + result.message);
+          alert('Last name updated to: ' + result.message);
         }
       } else {
         alert('There was an error fetching the users last name!');
       }
     } catch (error) {
       alert(
-        'There was an error fetching the users last name! The error was: ' +
-        error
+        'There was an error fetching the users last name! The error was: ' + error
       );
     }
   };
@@ -306,13 +296,11 @@ export default function App() {
     const updatedPageElements = pageElements.map((item) => {
       if (item.type === 'Credits') {
         const existingText = item.text || '';
-        // Convert current text to array of trimmed names
         const existingNames = existingText
           .split(',')
           .map((name) => name.trim())
           .filter(Boolean);
 
-        // Check if the user is already listed
         const exists = existingNames.some(
           (name) => name.toLowerCase() === userFullName.trim().toLowerCase()
         );
@@ -453,8 +441,10 @@ export default function App() {
   if (!fontsLoaded) return null;
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#CBD5E1' }}>
+    <View style={styles.LandingPage}>
       <StatusBar hidden={true} />
+
+      {/* HEADER SECTION */}
       <HeaderNav
         navPanel={navPanel}
         setNavPanel={setNavPanel}
@@ -483,26 +473,39 @@ export default function App() {
         setLoginVisible={setLoginVisible}
         lastName={lastName}
       />
+
+      {/* MAIN BODY LAYOUT */}
       <View
-        style={{ flex: 1, flexDirection: 'row', marginTop: 0, paddingTop: 0 }}>
-        {navPanel !== 'Landing Page' && navPanel !== 'Test' && (
-          <TableOfContents
-            data={tocData}
-            currentCategory={navPanel}
-            activeLesson={activeLesson}
-            onSelectLesson={handleSelectLesson}
-            loggedIn={loggedIn}
-            onSave={(flattenedToc) => handleSave(flattenedToc)}
-            onUpdateTocData={(newTocData) => {
-              setTocData(newTocData);
-              setHasSaved(false);
-            }}
-          />
+        style={{
+          flex: 1,
+          flexDirection: isMobile ? 'column' : 'row',
+          marginTop: 0,
+          paddingTop: 0,
+          overflow: 'hidden',
+          position: 'relative',
+        }}>
+
+        {/* 1. TABLE OF CONTENTS (DESKTOP ONLY LOCATION) */}
+        {!isMobile && navPanel !== 'Landing Page' && navPanel !== 'Test' && (
+          <View style={styles.TocWrapperDesktop}>
+            <TableOfContents
+              data={tocData}
+              currentCategory={navPanel}
+              activeLesson={activeLesson}
+              onSelectLesson={handleSelectLesson}
+              loggedIn={loggedIn}
+              onSave={(flattenedToc) => handleSave(flattenedToc)}
+              onUpdateTocData={(newTocData) => {
+                setTocData(newTocData);
+                setHasSaved(false);
+              }}
+            />
+          </View>
         )}
+
+        {/* 2. DOCUMENTATION CONTENT CONTAINER */}
         {navPanel === 'Landing Page' ? (
-          <LandingPage
-            setNavPanel={setNavPanel}
-          />
+          <LandingPage setNavPanel={setNavPanel} />
         ) : loading ? (
           <View
             style={{
@@ -515,348 +518,367 @@ export default function App() {
           </View>
         ) : (
           <ScrollView
-            style={styles.Page}
-            contentContainerStyle={{ paddingTop: 0, paddingBottom: 40 }}
-            showsVerticalScrollIndicator={false}
+            style={[
+              styles.Page,
+              isMobile && styles.PageMobile,
+              { flex: 1, height: '100%' },
+            ]}
+            contentContainerStyle={{ paddingTop: 0, paddingBottom: isMobile ? 120 : 80 }}
+            nestedScrollEnabled={true}
+            showsVerticalScrollIndicator={true}
             showsHorizontalScrollIndicator={false}>
             {pageElements.length === 0
               ? loggedIn && (
-                <View
-                  style={{
-                    width: '100%',
-                    maxWidth: 650,
-                    alignSelf: 'flex-start',
-                    marginBottom: 20,
-                  }}>
-                  <AddElementContainer index={-1} onAdd={handleAddElement} />
-                </View>
-              )
-              : pageElements.map((item, index) => {
-                let elementComponent = null;
-                const isTextPill =
-                  item.type.endsWith('Pill') && item.type !== 'VideoPill';
-                const isVideo =
-                  item.type === 'VideoPill' || item.type === 'Video';
-                const isPill = isTextPill || isVideo;
-
-                switch (item.type) {
-                  case 'Title':
-                    elementComponent = (
-                      <Title
-                        key={`el-${index}`}
-                        section={activeSection}
-                        lesson={activeLesson}
-                      />
-                    );
-                    break;
-                  case 'HeaderText':
-                    elementComponent = (
-                      <HeaderText
-                        key={`el-${index}`}
-                        title={item.text}
-                        onUpdate={(newText) =>
-                          handleUpdateElementField(index, 'text', newText)
-                        }
-                        setHasSaved={setHasSaved}
-                        loggedIn={loggedIn}
-                      />
-                    );
-                    break;
-                  case 'Paragraph':
-                    elementComponent = (
-                      <Paragraph
-                        key={`el-${index}`}
-                        text={item.text}
-                        onUpdate={(newText) =>
-                          handleUpdateElementField(index, 'text', newText)
-                        }
-                        setHasSaved={setHasSaved}
-                        loggedIn={loggedIn}
-                      />
-                    );
-                    break;
-                  case 'CodePill':
-                    elementComponent = (
-                      <CodePill
-                        key={`el-${index}`}
-                        description={item.text || item.description}
-                        language={item.language}
-                        onUpdate={(newText) =>
-                          handleUpdateElementField(
-                            index,
-                            item.description !== undefined
-                              ? 'description'
-                              : 'text',
-                            newText
-                          )
-                        }
-                        setHasSaved={setHasSaved}
-                        loggedIn={loggedIn}
-                      />
-                    );
-                    break;
-                  case 'TipPill':
-                    elementComponent = (
-                      <TipPill
-                        key={`el-${index}`}
-                        description={item.text || item.description}
-                        onUpdate={(newText) =>
-                          handleUpdateElementField(
-                            index,
-                            item.description !== undefined
-                              ? 'description'
-                              : 'text',
-                            newText
-                          )
-                        }
-                        setHasSaved={setHasSaved}
-                        loggedIn={loggedIn}
-                      />
-                    );
-                    break;
-                  case 'WarningPill':
-                    elementComponent = (
-                      <WarningPill
-                        key={`el-${index}`}
-                        description={item.text || item.description}
-                        onUpdate={(newText) =>
-                          handleUpdateElementField(
-                            index,
-                            item.description !== undefined
-                              ? 'description'
-                              : 'text',
-                            newText
-                          )
-                        }
-                        setHasSaved={setHasSaved}
-                        loggedIn={loggedIn}
-                      />
-                    );
-                    break;
-                  case 'ImportantPill':
-                    elementComponent = (
-                      <ImportantPill
-                        key={`el-${index}`}
-                        description={item.text || item.description}
-                        onUpdate={(newText) =>
-                          handleUpdateElementField(
-                            index,
-                            item.description !== undefined
-                              ? 'description'
-                              : 'text',
-                            newText
-                          )
-                        }
-                        setHasSaved={setHasSaved}
-                        loggedIn={loggedIn}
-                      />
-                    );
-                    break;
-                  case 'SuccessPill':
-                    elementComponent = (
-                      <SuccessPill
-                        key={`el-${index}`}
-                        description={item.text || item.description}
-                        onUpdate={(newText) =>
-                          handleUpdateElementField(
-                            index,
-                            item.description !== undefined
-                              ? 'description'
-                              : 'text',
-                            newText
-                          )
-                        }
-                        setHasSaved={setHasSaved}
-                        loggedIn={loggedIn}
-                      />
-                    );
-                    break;
-                  case 'VocabularyPill':
-                    elementComponent = (
-                      <VocabularyPill
-                        key={`el-${index}`}
-                        description={item.text || item.description}
-                        onUpdate={(newText) =>
-                          handleUpdateElementField(
-                            index,
-                            item.description !== undefined
-                              ? 'description'
-                              : 'text',
-                            newText
-                          )
-                        }
-                        setHasSaved={setHasSaved}
-                        loggedIn={loggedIn}
-                      />
-                    );
-                    break;
-                  case 'VideoPill':
-                  case 'Video':
-                    elementComponent = (
-                      <VideoPill
-                        key={`el-${index}`}
-                        title={item.title || ''}
-                        videoUrl={item.videoUrl || item.url || null}
-                        caption={item.caption || ''}
-                        onUpdateTitle={(newTitle) =>
-                          handleUpdateElementField(index, 'title', newTitle)
-                        }
-                        onUpdateVideoUrl={(newUrl) =>
-                          handleUpdateElementField(index, 'videoUrl', newUrl)
-                        }
-                        onUpdateCaption={(newCaption) =>
-                          handleUpdateElementField(
-                            index,
-                            'caption',
-                            newCaption
-                          )
-                        }
-                        setHasSaved={setHasSaved}
-                        loggedIn={loggedIn}
-                      />
-                    );
-                    break;
-                  case 'Credits': {
-                    elementComponent = (
-                      <ContributorsPill
-                        key={`el-${index}`}
-                        text={item.text || ''}
-                        onUpdateText={(newText) =>
-                          handleUpdateElementField(index, 'text', newText)
-                        }
-                        setHasSaved={setHasSaved}
-                        loggedIn={loggedIn}
-                      />
-                    );
-                    break;
-                  }
-                  default:
-                    elementComponent = null;
-                }
-
-                return (
                   <View
-                    key={`group-${index}`}
                     style={{
-                      position: 'relative',
-                      width: isTextPill ? 650 : '100%',
-                      paddingHorizontal: isTextPill ? 0 : 20,
-                      alignSelf: 'flex-start',
-                      paddingTop: loggedIn ? 8 : 0,
+                      width: '100%',
+                      maxWidth: 650,
+                      alignSelf: isMobile ? 'center' : 'flex-start',
+                      marginBottom: 20,
                     }}>
-                    {/* Action buttons */}
-                    {loggedIn && item.type !== 'Credits' && (
-                      <View
-                        style={{
-                          position: 'absolute',
-                          top: 18,
-                          right: isPill ? 18 : 38,
-                          zIndex: 999,
-                          flexDirection: 'row',
-                          gap: 4,
-                          alignItems: 'center',
-                        }}>
-                        <TouchableOpacity
-                          style={{
-                            backgroundColor:
-                              index === 0 ? '#E2E8F0' : '#EDF2F7',
-                            width: 28,
-                            height: 28,
-                            borderRadius: 14,
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            elevation: 3,
-                            opacity: index === 0 ? 0.5 : 1,
-                          }}
-                          disabled={index === 0}
-                          onPress={() => handleMoveElementUp(index)}>
-                          <Text
-                            style={{
-                              color: '#4A5568',
-                              fontWeight: 'bold',
-                              fontSize: 12,
-                            }}>
-                            ▲
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={{
-                            backgroundColor:
-                              index === pageElements.length - 1
-                                ? '#E2E8F0'
-                                : '#EDF2F7',
-                            width: 28,
-                            height: 28,
-                            borderRadius: 14,
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            elevation: 3,
-                            opacity:
-                              index === pageElements.length - 1 ? 0.5 : 1,
-                          }}
-                          disabled={index === pageElements.length - 1}
-                          onPress={() => handleMoveElementDown(index)}>
-                          <Text
-                            style={{
-                              color: '#4A5568',
-                              fontWeight: 'bold',
-                              fontSize: 12,
-                            }}>
-                            ▼
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={{
-                            backgroundColor: '#FED7D7',
-                            width: 28,
-                            height: 28,
-                            borderRadius: 14,
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            elevation: 3,
-                          }}
-                          onPress={() => handleDeleteElement(index)}
-                          hitSlop={{
-                            top: 10,
-                            bottom: 10,
-                            left: 10,
-                            right: 10,
-                          }}>
-                          <Text
-                            style={{
-                              color: '#E53E3E',
-                              fontWeight: 'bold',
-                              fontSize: 13,
-                              lineHeight: 15,
-                            }}>
-                            ✕
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-
-                    {/* Content Container */}
-                    <View
-                      style={{ marginTop: loggedIn ? 6 : 0, width: '100%' }}>
-                      {elementComponent}
-                    </View>
-
-                    {/* Add Control Underneath */}
-                    {loggedIn && item.type !== 'Credits' && (
-                      <AddElementContainer
-                        index={index}
-                        onAdd={handleAddElement}
-                      />
-                    )}
+                    <AddElementContainer index={-1} onAdd={handleAddElement} />
                   </View>
-                );
-              })}
+                )
+              : pageElements.map((item, index) => {
+                  let elementComponent = null;
+
+                  switch (item.type) {
+                    case 'Title':
+                      elementComponent = (
+                        <Title
+                          key={`el-${index}`}
+                          section={activeSection}
+                          lesson={activeLesson}
+                        />
+                      );
+                      break;
+                    case 'HeaderText':
+                      elementComponent = (
+                        <HeaderText
+                          key={`el-${index}`}
+                          title={item.text}
+                          onUpdate={(newText) =>
+                            handleUpdateElementField(index, 'text', newText)
+                          }
+                          setHasSaved={setHasSaved}
+                          loggedIn={loggedIn}
+                        />
+                      );
+                      break;
+                    case 'Paragraph':
+                      elementComponent = (
+                        <Paragraph
+                          key={`el-${index}`}
+                          text={item.text}
+                          onUpdate={(newText) =>
+                            handleUpdateElementField(index, 'text', newText)
+                          }
+                          setHasSaved={setHasSaved}
+                          loggedIn={loggedIn}
+                        />
+                      );
+                      break;
+                    case 'CodePill':
+                      elementComponent = (
+                        <CodePill
+                          key={`el-${index}`}
+                          description={item.text || item.description}
+                          language={item.language}
+                          onUpdate={(newText) =>
+                            handleUpdateElementField(
+                              index,
+                              item.description !== undefined
+                                ? 'description'
+                                : 'text',
+                              newText
+                            )
+                          }
+                          setHasSaved={setHasSaved}
+                          loggedIn={loggedIn}
+                        />
+                      );
+                      break;
+                    case 'TipPill':
+                      elementComponent = (
+                        <TipPill
+                          key={`el-${index}`}
+                          description={item.text || item.description}
+                          onUpdate={(newText) =>
+                            handleUpdateElementField(
+                              index,
+                              item.description !== undefined
+                                ? 'description'
+                                : 'text',
+                              newText
+                            )
+                          }
+                          setHasSaved={setHasSaved}
+                          loggedIn={loggedIn}
+                        />
+                      );
+                      break;
+                    case 'WarningPill':
+                      elementComponent = (
+                        <WarningPill
+                          key={`el-${index}`}
+                          description={item.text || item.description}
+                          onUpdate={(newText) =>
+                            handleUpdateElementField(
+                              index,
+                              item.description !== undefined
+                                ? 'description'
+                                : 'text',
+                              newText
+                            )
+                          }
+                          setHasSaved={setHasSaved}
+                          loggedIn={loggedIn}
+                        />
+                      );
+                      break;
+                    case 'ImportantPill':
+                      elementComponent = (
+                        <ImportantPill
+                          key={`el-${index}`}
+                          description={item.text || item.description}
+                          onUpdate={(newText) =>
+                            handleUpdateElementField(
+                              index,
+                              item.description !== undefined
+                                ? 'description'
+                                : 'text',
+                              newText
+                            )
+                          }
+                          setHasSaved={setHasSaved}
+                          loggedIn={loggedIn}
+                        />
+                      );
+                      break;
+                    case 'SuccessPill':
+                      elementComponent = (
+                        <SuccessPill
+                          key={`el-${index}`}
+                          description={item.text || item.description}
+                          onUpdate={(newText) =>
+                            handleUpdateElementField(
+                              index,
+                              item.description !== undefined
+                                ? 'description'
+                                : 'text',
+                              newText
+                            )
+                          }
+                          setHasSaved={setHasSaved}
+                          loggedIn={loggedIn}
+                        />
+                      );
+                      break;
+                    case 'VocabularyPill':
+                      elementComponent = (
+                        <VocabularyPill
+                          key={`el-${index}`}
+                          description={item.text || item.description}
+                          onUpdate={(newText) =>
+                            handleUpdateElementField(
+                              index,
+                              item.description !== undefined
+                                ? 'description'
+                                : 'text',
+                              newText
+                            )
+                          }
+                          setHasSaved={setHasSaved}
+                          loggedIn={loggedIn}
+                        />
+                      );
+                      break;
+                    case 'VideoPill':
+                    case 'Video':
+                      elementComponent = (
+                        <VideoPill
+                          key={`el-${index}`}
+                          title={item.title || ''}
+                          videoUrl={item.videoUrl || item.url || null}
+                          caption={item.caption || ''}
+                          onUpdateTitle={(newTitle) =>
+                            handleUpdateElementField(index, 'title', newTitle)
+                          }
+                          onUpdateVideoUrl={(newUrl) =>
+                            handleUpdateElementField(index, 'videoUrl', newUrl)
+                          }
+                          onUpdateCaption={(newCaption) =>
+                            handleUpdateElementField(
+                              index,
+                              'caption',
+                              newCaption
+                            )
+                          }
+                          setHasSaved={setHasSaved}
+                          loggedIn={loggedIn}
+                        />
+                      );
+                      break;
+                    case 'Credits': {
+                      elementComponent = (
+                        <ContributorsPill
+                          key={`el-${index}`}
+                          text={item.text || ''}
+                          onUpdateText={(newText) =>
+                            handleUpdateElementField(index, 'text', newText)
+                          }
+                          setHasSaved={setHasSaved}
+                          loggedIn={loggedIn}
+                        />
+                      );
+                      break;
+                    }
+                    default:
+                      elementComponent = null;
+                  }
+
+                  return (
+                    <View
+                      key={`group-${index}`}
+                      style={{
+                        position: 'relative',
+                        width: '100%',
+                        maxWidth: 650,
+                        paddingHorizontal: 0,
+                        alignSelf: isMobile ? 'center' : 'flex-start',
+                        paddingTop: loggedIn ? 8 : 0,
+                      }}>
+                      {loggedIn && item.type !== 'Credits' && (
+                        <View
+                          style={{
+                            position: 'absolute',
+                            top: 18,
+                            right: 18,
+                            zIndex: 999,
+                            flexDirection: 'row',
+                            gap: 4,
+                            alignItems: 'center',
+                          }}>
+                          <TouchableOpacity
+                            style={{
+                              backgroundColor:
+                                index === 0 ? '#E2E8F0' : '#EDF2F7',
+                              width: 28,
+                              height: 28,
+                              borderRadius: 14,
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              elevation: 3,
+                              opacity: index === 0 ? 0.5 : 1,
+                            }}
+                            disabled={index === 0}
+                            onPress={() => handleMoveElementUp(index)}>
+                            <Text
+                              style={{
+                                color: '#4A5568',
+                                fontWeight: 'bold',
+                                fontSize: 12,
+                              }}>
+                              ▲
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={{
+                              backgroundColor:
+                                index === pageElements.length - 1
+                                  ? '#E2E8F0'
+                                  : '#EDF2F7',
+                              width: 28,
+                              height: 28,
+                              borderRadius: 14,
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              elevation: 3,
+                              opacity:
+                                index === pageElements.length - 1 ? 0.5 : 1,
+                            }}
+                            disabled={index === pageElements.length - 1}
+                            onPress={() => handleMoveElementDown(index)}>
+                            <Text
+                              style={{
+                                color: '#4A5568',
+                                fontWeight: 'bold',
+                                fontSize: 12,
+                              }}>
+                              ▼
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={{
+                              backgroundColor: '#FED7D7',
+                              width: 28,
+                              height: 28,
+                              borderRadius: 14,
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              elevation: 3,
+                            }}
+                            onPress={() => handleDeleteElement(index)}
+                            hitSlop={{
+                              top: 10,
+                              bottom: 10,
+                              left: 10,
+                              right: 10,
+                            }}>
+                            <Text
+                              style={{
+                                color: '#E53E3E',
+                                fontWeight: 'bold',
+                                fontSize: 13,
+                                lineHeight: 15,
+                              }}>
+                              ✕
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      <View
+                        style={{ marginTop: loggedIn ? 6 : 0, width: '100%' }}>
+                        {elementComponent}
+                      </View>
+
+                      {loggedIn && item.type !== 'Credits' && (
+                        <AddElementContainer
+                          index={index}
+                          onAdd={handleAddElement}
+                        />
+                      )}
+                    </View>
+                  );
+                })}
           </ScrollView>
         )}
+
+        {/* 3. TABLE OF CONTENTS (MOBILE BOTTOM FIXED LOCATION) */}
+        {isMobile && navPanel !== 'Landing Page' && navPanel !== 'Test' && (
+          <View style={styles.MobileTocWrapper}>
+            <TableOfContents
+              data={tocData}
+              currentCategory={navPanel}
+              activeLesson={activeLesson}
+              onSelectLesson={handleSelectLesson}
+              loggedIn={loggedIn}
+              onSave={(flattenedToc) => handleSave(flattenedToc)}
+              onUpdateTocData={(newTocData) => {
+                setTocData(newTocData);
+                setHasSaved(false);
+              }}
+            />
+          </View>
+        )}
+
         {navPanel === 'Test' && <View />}
       </View>
+
+      {/* MODAL SAVE OVERLAY */}
       {requestPageChange && !hasSaved && (
         <SavePill
           style={{

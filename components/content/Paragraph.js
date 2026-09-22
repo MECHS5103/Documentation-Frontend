@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Text, Pressable, TextInput } from 'react-native';
+import { Text, Pressable, TextInput, useWindowDimensions } from 'react-native';
 import styles from '../../styles';
 import useDoubleClick from '../../hooks/useDoubleClick';
 
 export const Paragraph = ({ text, onUpdate, setHasSaved, loggedIn }) => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+
   const [isEditing, setIsEditing] = useState(false);
   const [localText, setLocalText] = useState(text);
 
@@ -26,7 +29,12 @@ export const Paragraph = ({ text, onUpdate, setHasSaved, loggedIn }) => {
   if (isEditing) {
     return (
       <TextInput
-        style={[styles.ParagraphText, styles.ActiveInput, { width: '100%' }]}
+        style={[
+          styles.ParagraphText,
+          isMobile && styles.ParagraphTextMobile,
+          styles.ActiveInput,
+          { width: '100%' },
+        ]}
         value={localText}
         onChangeText={handleChange}
         onBlur={() => setIsEditing(false)}
@@ -43,7 +51,11 @@ export const Paragraph = ({ text, onUpdate, setHasSaved, loggedIn }) => {
       style={{ width: '100%', alignSelf: 'stretch' }}>
       <Text
         selectable={false}
-        style={[styles.ParagraphText, { userSelect: 'none' }]}>
+        style={[
+          styles.ParagraphText,
+          isMobile && styles.ParagraphTextMobile,
+          { userSelect: 'none' },
+        ]}>
         {localText}
       </Text>
     </Pressable>

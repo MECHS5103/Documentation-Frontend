@@ -1,17 +1,19 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 
 export const ContributorsPill = ({ text = '' }) => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const contributors = text ? text.split(', ').filter(Boolean) : [];
 
   return (
-    <View style={pillStyles.wrapper}>
+    <View style={[pillStyles.wrapper, isMobile && { maxWidth: '100%' }]}>
       {/* Header Tab - Flush to the left */}
       <View style={pillStyles.headerTab}>
         <Text style={pillStyles.headerText}>Contributors</Text>
       </View>
 
-      {/* Main Card Container matching exact dimensions of your standard pills */}
+      {/* Main Card Container */}
       <View style={pillStyles.container}>
         {contributors.length > 0 ? (
           <View style={pillStyles.badgeContainer}>
@@ -32,7 +34,7 @@ export const ContributorsPill = ({ text = '' }) => {
 const pillStyles = StyleSheet.create({
   wrapper: {
     width: '100%',
-    maxWidth: 350,          // 👈 Tighter width constraint so it doesn't stretch too wide
+    maxWidth: 350,
     alignSelf: 'flex-start',
     marginVertical: 10,
   },
@@ -46,7 +48,7 @@ const pillStyles = StyleSheet.create({
     borderWidth: 3,
     borderBottomWidth: 0,
     borderColor: '#1A202C',
-    marginLeft: 0,          // Flush left
+    marginLeft: 0,
     zIndex: 1,
   },
   headerText: {

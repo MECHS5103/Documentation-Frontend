@@ -1,17 +1,70 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Platform } from 'react-native';
 
 const styles = StyleSheet.create({
+  /* --- Global Containers & Layout --- */
   LandingPage: {
     backgroundColor: '#CBD5E1',
-    flex: 1,
+    height: '100%',
     width: '100%',
+    position: Platform.OS === 'web' ? 'fixed' : 'relative',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
   },
   HeaderPage: {
     width: '100%',
+    backgroundColor: '#207ADB',
     zIndex: 200,
+    position: 'relative',
   },
+  Page: {
+    flex: 1,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    paddingTop: 0,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+  },
+  PageMobile: {
+    flex: 1,
+    flexDirection: 'column',
+    paddingHorizontal: 12,
+    paddingBottom: 0,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+
+  /* --- Scrollable Content Containers --- */
+  TocWrapperDesktop: {
+    height: '100%',
+    width: 180,
+    marginRight: 16,
+    flexShrink: 0,
+  },
+  MobileTocWrapper: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    right: 12,
+    zIndex: 999,
+    flexDirection: 'column-reverse',
+  },
+  DocContentScrollView: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  DocContentContainer: {
+    paddingBottom: 100,
+  },
+
+  /* --- Top Header & Logo --- */
   Header: {
-    width: '100vw',
+    width: '100%',
     height: 75,
     borderColor: '#1A202C',
     backgroundColor: '#207ADB',
@@ -20,8 +73,6 @@ const styles = StyleSheet.create({
   },
   HeaderMobile: {
     height: 45,
-    justifyContent: 'center',
-    zIndex: 15,
   },
   HeaderText: {
     fontFamily: 'Chewy',
@@ -32,7 +83,7 @@ const styles = StyleSheet.create({
   HeaderTextMobile: {
     fontSize: 22,
     alignSelf: 'flex-start',
-    paddingLeft: 115,
+    paddingLeft: 110,
   },
   Logo: {
     position: 'absolute',
@@ -42,39 +93,35 @@ const styles = StyleSheet.create({
     height: 162,
     backgroundColor: '#207ADB',
     borderBottomRightRadius: 35,
+    borderBottomWidth: 4,
+    borderColor: '#1A202C',
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 25,
+  },
+  LogoMobile: {
+    width: 95,
+    height: 83,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 4,
+    borderRightWidth: 0,
+    borderColor: '#1A202C',
   },
   LogoImage: {
     width: '75%',
     height: '75%',
   },
-  LogoBorder: {
-    position: 'absolute',
-    top: 162,
-    width: 130,
-    height: 3,
-    backgroundColor: '#1A202C',
-  },
-  LogoMobile: {
-    width: 100,
-    height: 100,
-    borderBottomRightRadius: 20,
-  },
   LogoImageMobile: {
-    width: '80%',
-    height: '80%',
+    width: '75%',
+    height: '75%',
   },
-  LogoBorderMobile: {
-    position: 'absolute',
-    top: 100,
-    width: 85,
-    height: 3,
-    backgroundColor: '#1A202C',
-  },
+
+  /* --- Navigation Bar --- */
   NavBar: {
     backgroundColor: '#2D3748',
-    marginLeft: 162,
+    marginLeft: 0,
+    marginTop: -4,
     height: 50,
     alignSelf: 'flex-start',
     justifyContent: 'flex-start',
@@ -89,15 +136,20 @@ const styles = StyleSheet.create({
     zIndex: 6,
   },
   NavBarMobile: {
-    marginLeft: 97,
-    height: 33,
-    borderTopLeftRadius: 0,
-    borderLeftWidth: 6,
-    borderColor: '#000000',
+    marginLeft: 95, // Matches mobile logo width exactly
+    height: 38,
+    borderTopLeftRadius: 15,
+    borderLeftWidth: 2,
+    borderTopWidth: 2,
+    borderBottomWidth: 4,
+    borderColor: '#1A202C',
+    flex: 1,
+    borderBottomRightRadius: 0,
   },
   NavBarScrollContainer: {
     alignItems: 'center',
-    paddingHorizontal: 15,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
   },
   NavBarText: {
     color: '#ffffff',
@@ -106,20 +158,18 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   NavBarTextMobile: {
-    fontSize: 18,
+    fontSize: 16,
   },
   NavBarButton: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    flexShrink: 0,
     zIndex: 1,
   },
-  TextButton: {},
-  TextButtonText: {
-    fontFamily: 'Chewy',
-  },
 
-  /* Shape Positions for Desktop Layout */
+  /* --- Header Shape Accents --- */
   HeaderBorder: {
     position: 'absolute',
     top: 75,
@@ -129,120 +179,138 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A202C',
     zIndex: 1,
   },
-  Square: {
-    position: 'absolute',
-    top: 70,
-    left: 157,
-    width: 35,
-    height: 35,
-    backgroundColor: '#207ADB',
-    zIndex: 1,
-  },
-  InvertedCorner: {
-    position: 'absolute',
-    top: 72,
-    left: 159,
-    width: 35,
-    height: 35,
-    backgroundColor: 'rgba(0, 0, 0, 0)',
-    // backgroundColor: '#2D3748',
-    borderTopLeftRadius: 40,
-    borderLeftWidth: 5,
-    borderTopWidth: 5,
-    borderColor: '#207ADB',
-    zIndex: 5,
-  },
-  InvertedCorner2: {
-    position: 'absolute',
-    top: 75,
-    left: 162,
-    width: 35,
-    height: 35,
-    // backgroundColor: 'rgba(0, 0, 0, 0)',
-    backgroundColor: '#2D3748',
-    borderTopLeftRadius: 31,
-    zIndex: 5,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderColor: '#1A202C',
-  },
-  InvertedCorner3: {
-    position: 'absolute',
-    top: 125,
-    left: 126,
-    width: 40,
-    height: 40,
-    backgroundColor: '#207ADB',
-    borderBottomRightRadius: 28,
-    borderRightWidth: 4,
-    borderBottomWidth: 4,
-    borderColor: '#1A202C',
-    zIndex: 5,
-  },
-
-  /* Fixed Coordinates for Mobile Screen Layout */
   HeaderBorderMobile: {
     left: 100,
     top: 45,
-  },
-  Square1Mobile: {
-    top: 45, // Lifted up above the navbar line (45 - 20)
-    left: 93, // Aligned precisely with the edge of the logo box
-    width: 10,
-    height: 20,
-    zIndex: 12,
-  },
-  Square2Mobile: {
-    top: 44, // Lifted up above the navbar line (45 - 20)
-    left: 97, // Aligned precisely with the edge of the logo box
-    width: 20,
-    height: 4,
-    zIndex: 12,
-  },
-  Square3Mobile: {
-    top: 44, // Lifted up above the navbar line (45 - 20)
-    left: 97, // Aligned precisely with the edge of the logo box
-    width: 15,
-    height: 7,
-    zIndex: 12,
-  },
-  InvertedCornerMobile: {
-    top: 45, // Fine-tuned to align the black accent border line
-    left: 100,
-    width: 22,
-    height: 22,
-    borderTopLeftRadius: 25, // Creates the outer matching curve radius
-    borderColor: '#000000', // Ensures the outer border stays crisp and dark
-    // borderColor: '#1A202C', // Ensures the outer border stays crisp and dark
-    zIndex: 13,
-  },
-  InvertedCorner2Mobile: {
-    top: 45, // Places the dark gray inner mask fill
-    left: 100,
-    width: 22,
-    height: 22,
-    borderTopLeftRadius: 18, // Curves the inner dark gray fill to reveal the blue backdrop
-    backgroundColor: 'rgba(0, 0, 0, 0)',
-    // backgroundColor: '#2D3748',
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderColor: '#000000', // Ensures the outer border stays crisp and dark
-    // borderColor: '#1A202C',
-    zIndex: 14,
-  },
-  InvertedCorner3Mobile: {
-    top: 64,
-    left: 68,
-    width: 39,
-    height: 39,
-    backgroundColor: '#207ADB',
-    borderBottomRightRadius: 25,
-    borderRightWidth: 4,
-    borderBottomWidth: 4,
-    borderColor: '#1A202C',
-    zIndex: 11,
+    display: 'none', // Hide mobile accent line collision
   },
 
+  /* --- Table of Contents --- */
+  TableOfContents: {
+    height: '100%',
+    width: 165,
+    marginTop: 10,
+    paddingRight: 10,
+    backgroundColor: '#FFFFFF',
+    borderRightWidth: 3,
+    borderColor: '#1A202C',
+  },
+  TableOfContentsMobile: {
+    width: '100%',
+    maxHeight: 350,
+    marginTop: 6,
+    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 3,
+    borderBottomWidth: 6,
+    borderColor: '#1A202C',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  TocToggleBtn: {
+    backgroundColor: '#207ADB',
+    borderWidth: 3,
+    borderBottomWidth: 6,
+    borderColor: '#1A202C',
+    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  TocToggleText: {
+    fontFamily: 'Chewy',
+    fontSize: 20,
+    color: '#FFFFFF',
+  },
+  TableOfContentsHeader: {
+    fontFamily: 'Chewy',
+    marginTop: 10,
+    marginLeft: 10,
+    fontSize: 13,
+  },
+  SubjectContainer: {
+    marginTop: 10,
+    marginLeft: 10,
+    paddingLeft: 10,
+    paddingBottom: 10,
+    borderLeftWidth: 3,
+    borderBottomWidth: 3,
+    borderBottomLeftRadius: 5,
+    borderColor: '#1A202C',
+  },
+  SubjectContainerMobile: {
+    marginLeft: 0,
+    paddingLeft: 0,
+    borderLeftWidth: 0,
+    borderBottomWidth: 0,
+    marginBottom: 8,
+  },
+  SubjectText: {
+    textTransform: 'uppercase',
+    fontFamily: 'Arial',
+    color: '#000000',
+    fontWeight: 'bold',
+  },
+  SubjectTextMobile: {
+    fontFamily: 'Chewy',
+    fontSize: 20,
+    color: '#2D3748',
+    marginTop: 6,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  LessonContainer: {
+    marginTop: 5,
+    marginBottom: 15,
+    marginLeft: 10,
+    paddingLeft: 10,
+    paddingBottom: 5,
+    borderLeftWidth: 3,
+    borderBottomWidth: 3,
+    borderBottomLeftRadius: 5,
+    borderColor: '#1A202C',
+  },
+  LessonContainerMobile: {
+    marginLeft: 0,
+    paddingLeft: 0,
+    borderLeftWidth: 0,
+    borderBottomWidth: 0,
+    marginBottom: 6,
+  },
+  LessonItemPillMobile: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginVertical: 3,
+    width: '100%',
+  },
+  LessonItemPillActiveMobile: {
+    backgroundColor: '#207ADB',
+    borderColor: '#1A202C',
+    borderWidth: 2,
+    borderBottomWidth: 4,
+  },
+  LessonText: {
+    fontFamily: 'Arial',
+    color: '#000000',
+    marginBottom: 5,
+  },
+  LessonTextMobile: {
+    fontFamily: 'Chewy',
+    fontSize: 16,
+    color: '#207ADB',
+  },
+  LessonTextActiveMobile: {
+    color: '#FFFFFF',
+  },
+
+  /* --- Content Pills & Dynamic Elements --- */
   WelcomeText: {
     marginTop: '2%',
     color: '#1A202C',
@@ -271,14 +339,6 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderBottomWidth: 7,
     borderColor: '#1A202C',
-  },
-
-  MainNav: {
-    width: '85%',
-    alignSelf: 'center',
-    paddingVertical: '2%',
-    flexGrow: 1,
-    justifyContent: 'flex-end',
   },
   NavPill: {
     flex: 1,
@@ -309,16 +369,20 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   Pill: {
-    width: 500,
+    width: '100%',
+    maxWidth: 650,
     minHeight: 76,
     backgroundColor: '#FFFFFF',
-    marginLeft: 25,
     borderRadius: 20,
     borderColor: '#1A202C',
     borderWidth: 3,
     borderBottomWidth: 7,
     alignItems: 'center',
     marginBottom: 10,
+    alignSelf: 'flex-start',
+  },
+  PillMobile: {
+    alignSelf: 'center',
   },
   PillHeader: {
     flexDirection: 'row',
@@ -373,82 +437,46 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   PillDescriptionText: {
-    fontFamily: 'arial',
-  },
-  Page: {
-    flex: 1,
-    paddingTop: 0,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-  },
-  TableOfContents: {
-    height: '100%',
-    width: 165,
-    marginTop: 40,
-    paddingRight: 20,
-    backgroundColor: '#FFFFFF',
-    borderRightWidth: 3,
-  },
-  TableOfContentsHeader: {
-    fontFamily: 'Chewy',
-    marginTop: 10,
-    marginLeft: 10,
-    fontSize: 13,
-  },
-  SubjectContainer: {
-    marginTop: 10,
-    marginLeft: 10,
-    paddingLeft: 10,
-    paddingBottom: 10,
-    borderLeftWidth: 3,
-    borderBottomWidth: 3,
-    borderBottomLeftRadius: 5,
-  },
-  SubjectText: {
-    textTransform: 'uppercase',
     fontFamily: 'Arial',
-    color: '#000000',
   },
-  LessonContainer: {
-    marginTop: 5,
-    marginBottom: 15,
-    marginLeft: 10,
-    paddingLeft: 10,
-    paddingBottom: 5,
-    borderLeftWidth: 3,
-    borderBottomWidth: 3,
-    borderBottomLeftRadius: 5,
-  },
-  LessonText: {
-    fontFamily: 'Arial',
-    color: '#000000',
-    marginBottom: 5,
-  },
+
+  /* --- Text Elements --- */
   TitleText: {
     fontFamily: 'Chewy',
     fontSize: 30,
     marginBottom: 30,
   },
+  TitleTextMobile: {
+    fontFamily: 'Chewy',
+    fontSize: 28,
+    marginBottom: 16,
+    color: '#1A202C',
+  },
   ParagraphText: {
     fontFamily: 'Arial',
     fontSize: 15,
-    marginLeft: 25,
     marginBottom: 30,
-    flex: 1, // Let it naturally fill the space inside the full-width pressable
+    flex: 1,
+  },
+  ParagraphTextMobile: {
+    marginLeft: 0,
+    marginBottom: 20,
   },
   HeaderPageText: {
     fontFamily: 'Arial',
     fontSize: 20,
-    fontWeight: 'Bold',
+    fontWeight: 'bold',
     marginBottom: 10,
     flex: 1,
   },
+
+  /* --- Admin Controls & Add Element Bar --- */
   AddElementContainerStyle: {
     width: '100%',
-    height: 36, // A stable, comfortable 36px mouse target area
+    height: 36,
     alignItems: 'center',
     backgroundColor: 'transparent',
-    marginVertical: 4, // Small spacer between content items
+    marginVertical: 4,
   },
   AddElementContainer: {
     width: '100%',
@@ -460,11 +488,11 @@ const styles = StyleSheet.create({
   },
   HoverLine: {
     position: 'absolute',
-    left: 25, // Matches the start indent of your paragraphs
-    right: 25,
+    left: 0,
+    right: 0,
     height: 2,
-    backgroundColor: '#1A202C', // Matches your dark border theme color
-    opacity: 0.4, // Sleek, subtle accent line
+    backgroundColor: '#1A202C',
+    opacity: 0.4,
     borderRadius: 1,
   },
   PlusButtonCircle: {
@@ -477,7 +505,7 @@ const styles = StyleSheet.create({
     borderColor: '#1A202C',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 2, // Keeps the plus button right on top of the divider line
+    zIndex: 2,
   },
   PlusHorizontal: {
     position: 'absolute',
@@ -498,23 +526,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    gap: 8, // Spacing between the two rows
+    gap: 8,
   },
   PillRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10, // Horizontal gap between the button cards
+    gap: 10,
+    flexWrap: 'wrap',
   },
   PillButton: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 3,
-    borderBottomWidth: 6, // Gives it that chunky block shadow effect from your UI theme
+    borderBottomWidth: 6,
     borderColor: '#1A202C',
-    minWidth: 120,
+    minWidth: 110,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -522,7 +551,6 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 16,
     fontWeight: 'bold',
-    fontFamily: 'System', // Swap with your project's custom font if needed
   },
   ActiveInput: {
     borderWidth: 1,
@@ -532,5 +560,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
 });
+
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const styleEl = document.createElement('style');
+  styleEl.innerHTML = `
+    html, body, #root {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden !important;
+      position: fixed;
+      touch-action: none;
+      overscroll-behavior: none;
+    }
+  `;
+  document.head.appendChild(styleEl);
+}
 
 export default styles;

@@ -21,6 +21,20 @@ export const Logo = ({ navPanel, setNavPanel }) => {
         style={[styles.LogoImage, isMobile && styles.LogoImageMobile]}
         resizeMode="contain"
       />
+      <View
+        style={{
+          position: 'absolute',
+          right: 0,
+          bottom: -4,
+          height: 50,
+          width: 100,
+          backgroundColor: '207ADB',
+          borderRightWidth: 4,
+          borderBottomWidth: 4,
+          borderBottomRightRadius: 35,
+          borderColor: '#1A202C',
+        }}
+      />
     </Pressable>
   );
 };
@@ -53,14 +67,16 @@ export const Header = ({
         Documentation
       </Text>
 
-      {/* Right side container holding the user badge and Sign Out / Login button */}
+      {/* Right side container holding user badge and Sign Out / Login button */}
       <View
         style={{
           position: 'absolute',
           right: 20,
+          top: isMobile ? 8 : 16,
           flexDirection: 'row',
           alignItems: 'center',
           gap: 12,
+          zIndex: 30,
         }}>
         {/* User Badge (Only renders when logged in) */}
         {loggedIn && (
@@ -94,7 +110,7 @@ export const Header = ({
             style={{
               color: '#FFFFFF',
               fontFamily: 'Chewy',
-              fontSize: 20,
+              fontSize: isMobile ? 16 : 20,
             }}>
             {loggedIn ? 'Sign Out' : 'Login'}
           </Text>
