@@ -320,6 +320,48 @@ function validateSavePayload(data) {
   };
 }
 
+function quoteSheetName(name) {
+  return "'" + String(name).replace(/'/g, "''") + "'";
+}
+
+function writeRawValues(spreadsheetId, sheetName, values) {
+  if (!values.length) return;
+  Sheets.Spreadsheets.Values.update(
+    { values: values },
+    spreadsheetId,
+    quoteSheetName(sheetName) + "!A1",
+    { valueInputOption: "RAW" }
+  );
+}
+
+function buildPageRows(category, section, lesson, pageElements) {
+  var rows = [
+    [category, section, lesson],
+    ["Title", "", ""]
+  ];
+
+  pageElements.forEach(function (item) {
+    if (item.type === "Title") return;
+
+    if (item.type === "VideoPill" || item.type === "Video") {
+      rows.push([
+        item.type,
+        JSON.stringify({ title: item.title || "", caption: item.caption || "" }),
+        item.videoUrl || ""
+      ]);
+    } else {
+      rows.push([item.type, item.text || "", item.language || ""]);
+    }
+  });
+  return rows;
+}
+
+function buildTocRows(tocData) {
+  return tocData.map(function (item) {
+    return [item.type, item.text];
+  });
+}
+
 function doPost(e) {
   var createResponse = function (status, payload, code) {
     var output = { status: status, message: payload };
@@ -410,39 +452,18 @@ function doPost(e) {
       );
 
       targetSheet.clear();
-      targetSheet.getRange(1, 1, 1, 3).setValues([[category, section, lesson]]);
-      targetSheet.appendRow(["Title", "", ""]);
-
-      pageElements.forEach(function (item) {
-        if (item.type === "Title") return;
-
-        var itemType = item.type || "";
-        var contentText = "";
-        var extraValue = "";
-
-        if (itemType === "VideoPill" || itemType === "Video") {
-          contentText = JSON.stringify({
-            title: item.title || "",
-            caption: item.caption || ""
-          });
-          extraValue = item.videoUrl || item.url || "";
-        } else {
-          contentText = item.text !== undefined ? item.text : (item.description !== undefined ? item.description : "");
-          extraValue = item.language || "";
-        }
-
-        targetSheet.appendRow([itemType, contentText, extraValue]);
-      });
+      writeRawValues(
+        PAGES_SPREADSHEET_ID,
+        targetSheet.getName(),
+        buildPageRows(category, section, lesson, pageElements)
+      );
     }
 
     if (category && tocData.length > 0) {
       var tocSs = SpreadsheetApp.openById(TOC_SPREADSHEET_ID);
       var tocSheet = tocSs.getSheetByName(category) || tocSs.insertSheet(category);
       tocSheet.clear();
-
-      tocData.forEach(function (tocItem) {
-        tocSheet.appendRow([tocItem.type || "", tocItem.text || ""]);
-      });
+      writeRawValues(TOC_SPREADSHEET_ID, tocSheet.getName(), buildTocRows(tocData));
     }
 
     return createResponse("success", "Data synchronized successfully!", "OK");
