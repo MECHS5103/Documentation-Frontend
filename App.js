@@ -12,6 +12,12 @@ import { useFonts, Chewy_400Regular } from '@expo-google-fonts/chewy';
 
 import useFetchData from './hooks/useFetchData';
 import dataCache from './services/cache';
+import {
+  getEditorIdToken,
+  observeEditorAuthState,
+  signInEditor,
+  signOutEditor,
+} from './services/auth';
 import styles from './styles';
 import VideoPill from './components/pills/VideoPill';
 import ContributorsPill from './components/pills/ContributorsPill';
@@ -57,31 +63,30 @@ export default function App() {
   const [hasSaved, setHasSaved] = useState(true);
   const [requestPageChange, setRequestPageChange] = useState(null);
 
-  const [loggedIn, setLoggedIn] = useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('is_logged_in') === 'true';
-    }
-    return false;
-  });
-
-  const [username, setUsername] = useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('user_username') || '';
-    }
-    return '';
-  });
-
-  const [password, setPassword] = useState('');
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [username, setUsername] = useState('');
   const [loginVisible, setLoginVisible] = useState(false);
-
-  const [lastName, setLastName] = useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('user_last_name') || '';
-    }
-    return '';
-  });
+  const [lastName, setLastName] = useState('');
 
   const [pageCredits, setPageCredits] = useState([]);
+
+  useEffect(() => {
+    return observeEditorAuthState((user) => {
+      if (!user) {
+        setLoggedIn(false);
+        setUsername('');
+        setLastName('');
+        return;
+      }
+
+      const displayName = (user.displayName || user.email || '').trim();
+      const nameParts = displayName.split(/\s+/).filter(Boolean);
+
+      setLoggedIn(true);
+      setUsername(nameParts[0] || displayName);
+      setLastName(nameParts.slice(1).join(' '));
+    });
+  }, []);
 
   const parseCurrentUrl = () => {
     if (typeof window === 'undefined')
@@ -193,19 +198,8 @@ export default function App() {
       localStorage.setItem('last_activeSection', activeSection);
       localStorage.setItem('last_activeLesson', activeLesson);
 
-      if (username) {
-        localStorage.setItem('user_username', username);
-      } else {
-        localStorage.removeItem('user_username');
-      }
-
-      if (lastName) {
-        localStorage.setItem('user_last_name', lastName);
-      } else {
-        localStorage.removeItem('user_last_name');
-      }
     }
-  }, [navPanel, activeSection, activeLesson, username, lastName]);
+  }, [navPanel, activeSection, activeLesson]);
 
   useEffect(() => {
     const creditsElement = pageElements.find((item) => item.type === 'Credits');
@@ -217,80 +211,22 @@ export default function App() {
     }
   }, [pageElements]);
 
-  const getUserLastName = async (credentialPassword) => {
+  const handleLogin = async () => {
     try {
-      const response = await fetch(
-        'https://script.google.com/macros/s/AKfycbz3b2ncvEKcdHMvsdwukIR9EATgIPZG0pk4ry-NpyIHFYWxZAPqJY1Va9b6vuVuoSf5jw/exec',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8',
-          },
-          body: JSON.stringify({
-            action: 'doGetUserLast',
-            user: username,
-            pass: credentialPassword,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (result.status === 'success') {
-        setLastName(result.message);
-        if (typeof window !== 'undefined' && window.localStorage) {
-          setLastName(result.message);
-          localStorage.setItem('user_last_name', result.message);
-          alert('Last name updated to: ' + result.message);
-        }
-      } else {
-        alert('There was an error fetching the users last name!');
-      }
+      await signInEditor();
+      setLoginVisible(false);
     } catch (error) {
-      alert(
-        'There was an error fetching the users last name! The error was: ' + error
-      );
+      console.error('Sign-in error:', error);
+      alert(error.message || 'Unable to sign in.');
     }
   };
 
-  const handleLogin = async () => {
-    const submittedPassword = password;
-
-    try {
-      const response = await fetch(
-        'https://script.google.com/macros/s/AKfycbz3b2ncvEKcdHMvsdwukIR9EATgIPZG0pk4ry-NpyIHFYWxZAPqJY1Va9b6vuVuoSf5jw/exec',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8',
-          },
-          body: JSON.stringify({
-            action: 'doTestCredentials',
-            user: username,
-            pass: submittedPassword,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (result.status === 'success') {
-        setLoggedIn(true);
-        setLoginVisible(false);
-        if (typeof window !== 'undefined' && window.localStorage) {
-          localStorage.setItem('is_logged_in', 'true');
-          localStorage.setItem('user_username', username);
-        }
-
-        await getUserLastName(submittedPassword);
-      } else {
-        alert('Incorrect username or password');
-      }
-    } catch (error) {
-      console.error('Network communication error:', error);
-    } finally {
-      setPassword('');
-    }
+  const handleLogout = async () => {
+    await signOutEditor();
+    setLoggedIn(false);
+    setLoginVisible(false);
+    setUsername('');
+    setLastName('');
   };
 
   const handleSave = async (tocOverride = null) => {
@@ -301,7 +237,7 @@ export default function App() {
 
     const userCut = username.split(' ');
 
-    const userFullName = `${userCut[0]} ${lastName}`;
+    const userFullName = [userCut[0], lastName].filter(Boolean).join(' ');
 
     const updatedPageElements = pageElements.map((item) => {
       if (item.type === 'Credits') {
@@ -328,7 +264,7 @@ export default function App() {
     });
 
     try {
-      // Pointing to your Raspberry Pi Cloudflare Tunnel API endpoint
+      const idToken = await getEditorIdToken();
       const response = await fetch(
         'https://api.team5103.com/api/save',
         {
@@ -337,6 +273,8 @@ export default function App() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
+            action: 'saveContent',
+            idToken,
             category: navPanel,
             section: activeSection,
             lesson: activeLesson,
@@ -462,28 +400,12 @@ export default function App() {
         onSave={() => handleSave()}
         loggedIn={loggedIn}
         setLoggedIn={(val) => {
-          setLoggedIn(val);
           if (!val) {
-            setPassword('');
-            setLoginVisible(false);
-            setUsername('');
-            setLastName('');
-          }
-          if (typeof window !== 'undefined' && window.localStorage) {
-            if (val) {
-              localStorage.setItem('is_logged_in', 'true');
-            } else {
-              localStorage.removeItem('is_logged_in');
-              localStorage.removeItem('user_username');
-              localStorage.removeItem('user_last_name');
-            }
+            handleLogout();
           }
         }}
         onLogin={handleLogin}
         username={username}
-        setUsername={setUsername}
-        password={password}
-        setPassword={setPassword}
         loginVisible={loginVisible}
         setLoginVisible={setLoginVisible}
         lastName={lastName}

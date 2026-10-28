@@ -9,39 +9,73 @@ const source = fs.readFileSync(
   'utf8'
 );
 
-const credentialRows = [
-  ['Username', 'Password', 'Last Name'],
-  ['editor', 'correct horse', 'Builder'],
-  ['', '', ''],
-];
+const projectId = 'robotics-documentation';
 
-function loadScript(rows = credentialRows, openError = null) {
+const encode = (value) =>
+  Buffer.from(JSON.stringify(value)).toString('base64url');
+
+const makeToken = (overrides = {}) => {
+  const payload = {
+    sub: 'editor-uid',
+    aud: projectId,
+    iss: `https://securetoken.google.com/${projectId}`,
+    editor: true,
+    firebase: { sign_in_provider: 'google.com' },
+    ...overrides,
+  };
+  return `${encode({ alg: 'RS256' })}.${encode(payload)}.signature`;
+};
+
+const validAccount = {
+  users: [
+    {
+      localId: 'editor-uid',
+      email: 'editor@example.com',
+      emailVerified: true,
+      displayName: 'Example Editor',
+      disabled: false,
+    },
+  ],
+};
+
+function loadScript({ responseCode = 200, responseBody = validAccount } = {}) {
   const context = {
     console,
+    encodeURIComponent,
+    JSON,
     Logger: { log() {} },
-    ContentService: {
-      MimeType: { JSON: 'application/json' },
-      createTextOutput(content) {
+    PropertiesService: {
+      getScriptProperties() {
         return {
-          content,
-          setMimeType() {
-            return this;
+          getProperty(name) {
+            return {
+              FIREBASE_WEB_API_KEY: 'public-api-key',
+              FIREBASE_PROJECT_ID: projectId,
+            }[name];
           },
         };
       },
     },
-    SpreadsheetApp: {
-      openById() {
-        if (openError) throw openError;
+    UrlFetchApp: {
+      fetch() {
         return {
-          getSheetByName() {
-            return {
-              getDataRange() {
-                return { getValues: () => rows };
-              },
-            };
-          },
+          getResponseCode: () => responseCode,
+          getContentText: () => JSON.stringify(responseBody),
         };
+      },
+    },
+    Utilities: {
+      base64DecodeWebSafe(value) {
+        return Buffer.from(value, 'base64url');
+      },
+      newBlob(value) {
+        return { getDataAsString: () => Buffer.from(value).toString('utf8') };
+      },
+    },
+    ContentService: {
+      MimeType: { JSON: 'application/json' },
+      createTextOutput(content) {
+        return { content, setMimeType() { return this; } };
       },
     },
   };
@@ -51,65 +85,41 @@ function loadScript(rows = credentialRows, openError = null) {
   return context;
 }
 
-function post(context, payload) {
-  const response = context.doPost({
-    postData: { contents: JSON.stringify(payload) },
+test('accepts a validated Google editor token', () => {
+  const context = loadScript();
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(context.verifyEditorToken(makeToken()))),
+    {
+      uid: 'editor-uid',
+      email: 'editor@example.com',
+      displayName: 'Example Editor',
+    }
+  );
+});
+
+for (const [name, token] of [
+  ['missing editor claim', makeToken({ editor: false })],
+  ['wrong project', makeToken({ aud: 'other-project' })],
+  ['wrong issuer', makeToken({ iss: 'https://issuer.invalid' })],
+  ['wrong provider', makeToken({ firebase: { sign_in_provider: 'password' } })],
+  ['subject mismatch', makeToken({ sub: 'other-user' })],
+]) {
+  test(`rejects ${name}`, () => {
+    const context = loadScript();
+    assert.throws(() => context.verifyEditorToken(token), /Unauthorized/);
   });
-  return JSON.parse(response.content);
 }
 
-test('returns a last name only for an exact credential match', () => {
-  const context = loadScript();
-  assert.deepEqual(
-    post(context, {
-      action: 'doGetUserLast',
-      user: 'editor',
-      pass: 'correct horse',
-    }),
-    { status: 'success', message: 'Builder' }
-  );
+test('rejects a token that Identity Toolkit does not validate', () => {
+  const context = loadScript({ responseCode: 400, responseBody: {} });
+  assert.throws(() => context.verifyEditorToken(makeToken()), /Unauthorized/);
 });
 
-test('does not distinguish a wrong password from an unknown username', () => {
-  const context = loadScript();
-  const wrongPassword = post(context, {
-    action: 'doGetUserLast',
-    user: 'editor',
-    pass: 'wrong',
+test('rejects disabled and unverified accounts', () => {
+  const context = loadScript({
+    responseBody: {
+      users: [{ ...validAccount.users[0], disabled: true, emailVerified: false }],
+    },
   });
-  const unknownUser = post(context, {
-    action: 'doGetUserLast',
-    user: 'nobody',
-    pass: 'wrong',
-  });
-
-  assert.deepEqual(wrongPassword, {
-    status: 'error',
-    message: 'Access Denied',
-  });
-  assert.deepEqual(unknownUser, wrongPassword);
-});
-
-test('does not coerce non-string values into blank credentials', () => {
-  const context = loadScript();
-  assert.deepEqual(
-    post(context, {
-      action: 'doTestCredentials',
-      user: false,
-      pass: false,
-    }),
-    { status: 'error', message: 'Access Denied' }
-  );
-});
-
-test('does not expose credential backend exception details', () => {
-  const context = loadScript(undefined, new Error('private spreadsheet detail'));
-  assert.deepEqual(
-    post(context, {
-      action: 'doGetUserLast',
-      user: 'editor',
-      pass: 'correct horse',
-    }),
-    { status: 'error', message: 'Authentication service unavailable.' }
-  );
+  assert.throws(() => context.verifyEditorToken(makeToken()), /Unauthorized/);
 });

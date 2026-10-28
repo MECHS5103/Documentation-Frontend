@@ -1,13 +1,7 @@
 import React from 'react';
-import { View, Text, TextInput, Pressable, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, useWindowDimensions } from 'react-native';
 
-export const LoginPanel = ({
-  onLogin,
-  username,
-  setUsername,
-  password,
-  setPassword,
-}) => {
+export const LoginPanel = ({ onLogin }) => {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
@@ -25,43 +19,9 @@ export const LoginPanel = ({
         borderBottomWidth: 5,
         zIndex: 1000,
       }}>
-      <View style={{ padding: 10 }}>
-        <Text>User:</Text>
-        <TextInput
-          value={username}
-          onChangeText={(text) => setUsername(text)}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="username"
-          textContentType="username"
-          placeholder=""
-          style={{
-            width: '100%',
-            borderWidth: 2,
-            borderRadius: 5,
-            fontFamily: 'Arial',
-          }}
-        />
-      </View>
-      <View style={{ padding: 10 }}>
-        <Text>Password:</Text>
-        <TextInput
-          secureTextEntry
-          value={password}
-          onChangeText={(text) => setPassword(text)}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="current-password"
-          textContentType="password"
-          placeholder=""
-          style={{
-            width: '100%',
-            borderWidth: 2,
-            borderRadius: 5,
-            fontFamily: 'Arial',
-          }}
-        />
-      </View>
+      <Text style={{ padding: 10, fontFamily: 'Arial', fontSize: 12 }}>
+        Use an approved Team 5103 Google account.
+      </Text>
       <Pressable
         style={{
           alignSelf: 'center',
@@ -77,7 +37,7 @@ export const LoginPanel = ({
         }}>
         <Text
           style={{ textAlign: 'center', fontFamily: 'Arial', fontSize: 12 }}>
-          Login
+          Continue with Google
         </Text>
       </Pressable>
     </View>

@@ -46,9 +46,6 @@ export const Header = ({
   setLoggedIn,
   onLogin,
   username,
-  setUsername,
-  password,
-  setPassword,
   loginVisible,
   setLoginVisible,
   lastName
@@ -113,7 +110,6 @@ export const Header = ({
             }
 
             if (loginVisible) {
-              setPassword('');
               setLoginVisible(false);
             } else {
               setLoginVisible(true);
@@ -131,13 +127,7 @@ export const Header = ({
       </View>
 
       {loginVisible && (
-        <LoginPanel
-          onLogin={onLogin}
-          username={username}
-          setUsername={setUsername}
-          password={password}
-          setPassword={setPassword}
-        />
+        <LoginPanel onLogin={onLogin} />
       )}
     </View>
   );

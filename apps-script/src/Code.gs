@@ -120,47 +120,68 @@ function doGet(e) {
   }
 }
 
-function findCredentialRecord(user, pass) {
-  if (
-    typeof user !== "string" ||
-    typeof pass !== "string" ||
-    user.trim() === "" ||
-    pass === "" ||
-    user.length > 256 ||
-    pass.length > 1024
-  ) {
-    return null;
+function getRequiredScriptProperty(name) {
+  var value = PropertiesService.getScriptProperties().getProperty(name);
+  if (!value) throw new Error("Missing required server configuration.");
+  return value;
+}
+
+function decodeFirebaseTokenPayload(idToken) {
+  var parts = idToken.split(".");
+  if (parts.length !== 3) throw new Error("Unauthorized");
+
+  try {
+    var decoded = Utilities.base64DecodeWebSafe(parts[1]);
+    return JSON.parse(Utilities.newBlob(decoded).getDataAsString());
+  } catch (error) {
+    throw new Error("Unauthorized");
+  }
+}
+
+function verifyEditorToken(idToken) {
+  if (typeof idToken !== "string" || idToken.length < 20 || idToken.length > 8192) {
+    throw new Error("Unauthorized");
   }
 
-  var credentialsSheet = SpreadsheetApp.openById("16zAOsI_j2HJnsle44EoU7f7BXOd6UP0lA1Q3mcSpbio");
-  var credentialsTab = credentialsSheet.getSheetByName("Data");
-  var data = credentialsTab.getDataRange().getValues();
-
-  for (var i = 0; i < data.length; i++) {
-    var username = String(data[i][0]);
-    var password = String(data[i][1]);
-
-    if (username === user && password === pass) {
-      var lastName = data[i][2];
-      return {
-        lastName: (lastName !== null && lastName !== undefined)
-          ? String(lastName).trim()
-          : ""
-      };
+  var apiKey = getRequiredScriptProperty("FIREBASE_WEB_API_KEY");
+  var projectId = getRequiredScriptProperty("FIREBASE_PROJECT_ID");
+  var response = UrlFetchApp.fetch(
+    "https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" + encodeURIComponent(apiKey),
+    {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify({ idToken: idToken }),
+      muteHttpExceptions: true
     }
+  );
+
+  if (response.getResponseCode() !== 200) throw new Error("Unauthorized");
+
+  var body = JSON.parse(response.getContentText());
+  if (!body.users || body.users.length !== 1) throw new Error("Unauthorized");
+
+  var user = body.users[0];
+  var claims = decodeFirebaseTokenPayload(idToken);
+  var provider = claims.firebase && claims.firebase.sign_in_provider;
+
+  if (
+    user.disabled === true ||
+    user.emailVerified !== true ||
+    !user.localId ||
+    claims.sub !== user.localId ||
+    claims.aud !== projectId ||
+    claims.iss !== "https://securetoken.google.com/" + projectId ||
+    claims.editor !== true ||
+    provider !== "google.com"
+  ) {
+    throw new Error("Unauthorized");
   }
 
-  return null;
-}
-
-function doTestCredentials(user, pass) {
-  return findCredentialRecord(user, pass) !== null;
-}
-
-function doGetUserLast(user, pass) {
-  var credential = findCredentialRecord(user, pass);
-  if (credential === null) return null;
-  return credential.lastName === "" ? " " : credential.lastName;
+  return {
+    uid: user.localId,
+    email: String(user.email || ""),
+    displayName: String(user.displayName || user.email || "Editor")
+  };
 }
 
 function doPost(e) {
@@ -181,29 +202,6 @@ function doPost(e) {
       data = JSON.parse(e.postData.contents);
     } catch (parseErr) {
       return createResponse("error", "Invalid JSON payload: " + parseErr.toString());
-    }
-
-    if (data.action === "doTestCredentials") {
-      try {
-        var isValid = doTestCredentials(data.user, data.pass);
-        return createResponse(isValid ? "success" : "error", isValid ? "Access Granted" : "Access Denied");
-      } catch (authError) {
-        console.error("Credential lookup failed", authError);
-        return createResponse("error", "Authentication service unavailable.");
-      }
-    }
-
-    if (data.action === "doGetUserLast") {
-      try {
-        var userLast = doGetUserLast(data.user, data.pass);
-        return createResponse(
-          userLast !== null ? "success" : "error",
-          userLast !== null ? userLast : "Access Denied"
-        );
-      } catch (profileError) {
-        console.error("Profile lookup failed", profileError);
-        return createResponse("error", "Authentication service unavailable.");
-      }
     }
 
     var category = data.category;

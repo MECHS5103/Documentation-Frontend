@@ -12,9 +12,6 @@ export const HeaderNav = ({
   setLoggedIn,
   onLogin,
   username,
-  setUsername,
-  password,
-  setPassword,
   loginVisible,
   setLoginVisible,
   lastName,
@@ -32,9 +29,6 @@ export const HeaderNav = ({
         setLoggedIn={setLoggedIn}
         onLogin={onLogin}
         username={username}
-        setUsername={setUsername}
-        password={password}
-        setPassword={setPassword}
         loginVisible={loginVisible}
         setLoginVisible={setLoginVisible}
         lastName={lastName}
