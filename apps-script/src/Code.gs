@@ -184,6 +184,37 @@ function verifyEditorToken(idToken) {
   };
 }
 
+function readExistingContributors(sheet) {
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  var values = sheet.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (values[i][0] === "Credits") {
+      return String(values[i][1] || "")
+        .split(",")
+        .map(function (name) { return name.trim(); })
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function applyAuthenticatedContributor(pageElements, existingContributors, principal) {
+  var contributors = existingContributors.slice();
+  var authenticatedName = principal.displayName || principal.email || principal.uid;
+  var alreadyPresent = contributors.some(function (name) {
+    return name.toLowerCase() === authenticatedName.toLowerCase();
+  });
+
+  if (!alreadyPresent) contributors.push(authenticatedName);
+
+  var withoutClientCredits = pageElements.filter(function (item) {
+    return item && item.type !== "Credits";
+  });
+  withoutClientCredits.push({ type: "Credits", text: contributors.join(", ") });
+  return withoutClientCredits;
+}
+
 function doPost(e) {
   var createResponse = function (status, payload) {
     var output = { status: status, message: payload };
@@ -202,6 +233,18 @@ function doPost(e) {
       data = JSON.parse(e.postData.contents);
     } catch (parseErr) {
       return createResponse("error", "Invalid JSON payload: " + parseErr.toString());
+    }
+
+    if (data.action !== "saveContent") {
+      return createResponse("error", "Unsupported action.");
+    }
+
+    var principal;
+    try {
+      principal = verifyEditorToken(data.idToken);
+    } catch (authError) {
+      console.warn("Denied content mutation", authError.message);
+      return createResponse("error", "Access Denied");
     }
 
     var category = data.category;
@@ -240,6 +283,12 @@ function doPost(e) {
       if (!targetSheet) {
         targetSheet = pagesSs.insertSheet(category.substring(0, 3) + "_" + lesson.substring(0, 10) + "_" + Date.now());
       }
+
+      pageElements = applyAuthenticatedContributor(
+        pageElements,
+        readExistingContributors(targetSheet),
+        principal
+      );
 
       targetSheet.clear();
       targetSheet.getRange(1, 1, 1, 3).setValues([[category, section, lesson]]);

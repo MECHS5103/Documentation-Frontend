@@ -85,6 +85,13 @@ function loadScript({ responseCode = 200, responseBody = validAccount } = {}) {
   return context;
 }
 
+function post(context, payload) {
+  const response = context.doPost({
+    postData: { contents: JSON.stringify(payload) },
+  });
+  return JSON.parse(response.content);
+}
+
 test('accepts a validated Google editor token', () => {
   const context = loadScript();
   assert.deepEqual(
@@ -122,4 +129,45 @@ test('rejects disabled and unverified accounts', () => {
     },
   });
   assert.throws(() => context.verifyEditorToken(makeToken()), /Unauthorized/);
+});
+
+test('rejects anonymous mutations before any spreadsheet access', () => {
+  const context = loadScript({ responseCode: 400, responseBody: {} });
+  assert.deepEqual(
+    post(context, {
+      action: 'saveContent',
+      idToken: 'not-a-valid-token',
+      category: 'Test',
+      section: 'Security',
+      lesson: 'Denied',
+      tocData: [],
+      pageElements: [],
+    }),
+    { status: 'error', message: 'Access Denied' }
+  );
+});
+
+test('rejects unknown actions instead of falling through to writes', () => {
+  const context = loadScript();
+  assert.deepEqual(post(context, { action: 'unknown' }), {
+    status: 'error',
+    message: 'Unsupported action.',
+  });
+});
+
+test('ignores client-supplied credits and derives the current contributor', () => {
+  const context = loadScript();
+  const result = context.applyAuthenticatedContributor(
+    [
+      { type: 'Paragraph', text: 'Hello' },
+      { type: 'Credits', text: 'Forged Person' },
+    ],
+    ['Earlier Editor'],
+    { uid: 'editor-uid', displayName: 'Example Editor' }
+  );
+
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), [
+    { type: 'Paragraph', text: 'Hello' },
+    { type: 'Credits', text: 'Earlier Editor, Example Editor' },
+  ]);
 });
