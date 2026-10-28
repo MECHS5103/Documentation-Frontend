@@ -26,7 +26,7 @@
       "favicon": "./assets/logo.png"
     },
     "experiments": {
-      "baseUrl": "/Documentation"
+      "baseUrl": "/"
     }
   }
 }

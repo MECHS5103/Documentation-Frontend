@@ -94,9 +94,7 @@ export default function App() {
     const pathname = window.location.pathname;
     const segments = pathname.split('/').filter(Boolean);
 
-    if (segments.length > 0 && segments[0].toLowerCase() === 'documentation') {
-      segments.shift();
-    }
+    // REMOVED the check that shifted/skipped 'documentation'
 
     if (segments.length === 0) {
       return { panel: 'Landing Page', section: '', lesson: '', isExplicit: true };
@@ -167,7 +165,7 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      let newPath = '/Documentation/';
+      let newPath = '/';
       if (navPanel && navPanel !== 'Landing Page') {
         newPath += `${encodeURIComponent(navPanel)}`;
         if (activeSection) {
@@ -318,12 +316,13 @@ export default function App() {
     });
 
     try {
+      // Pointing to your Raspberry Pi Cloudflare Tunnel API endpoint
       const response = await fetch(
-        'https://script.google.com/macros/s/AKfycbz3b2ncvEKcdHMvsdwukIR9EATgIPZG0pk4ry-NpyIHFYWxZAPqJY1Va9b6vuVuoSf5jw/exec',
+        'https://api.team5103.com/api/save',
         {
           method: 'POST',
           headers: {
-            'Content-Type': 'text/plain;charset=utf-8',
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             category: navPanel,
@@ -337,7 +336,7 @@ export default function App() {
 
       const result = await response.json();
       if (result.status === 'success') {
-        alert('Data saved successfully!');
+        alert('Data saved successfully to your Pi!');
         setHasSaved(true);
 
         const cacheKey = `${navPanel}-${activeSection}-${activeLesson}`;
@@ -529,331 +528,331 @@ export default function App() {
             showsHorizontalScrollIndicator={false}>
             {pageElements.length === 0
               ? loggedIn && (
+                <View
+                  style={{
+                    width: '100%',
+                    maxWidth: 650,
+                    alignSelf: isMobile ? 'center' : 'flex-start',
+                    marginBottom: 20,
+                  }}>
+                  <AddElementContainer index={-1} onAdd={handleAddElement} />
+                </View>
+              )
+              : pageElements.map((item, index) => {
+                let elementComponent = null;
+
+                switch (item.type) {
+                  case 'Title':
+                    elementComponent = (
+                      <Title
+                        key={`el-${index}`}
+                        section={activeSection}
+                        lesson={activeLesson}
+                      />
+                    );
+                    break;
+                  case 'HeaderText':
+                    elementComponent = (
+                      <HeaderText
+                        key={`el-${index}`}
+                        title={item.text}
+                        onUpdate={(newText) =>
+                          handleUpdateElementField(index, 'text', newText)
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'Paragraph':
+                    elementComponent = (
+                      <Paragraph
+                        key={`el-${index}`}
+                        text={item.text}
+                        onUpdate={(newText) =>
+                          handleUpdateElementField(index, 'text', newText)
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'CodePill':
+                    elementComponent = (
+                      <CodePill
+                        key={`el-${index}`}
+                        description={item.text || item.description}
+                        language={item.language}
+                        onUpdate={(newText) =>
+                          handleUpdateElementField(
+                            index,
+                            item.description !== undefined
+                              ? 'description'
+                              : 'text',
+                            newText
+                          )
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'TipPill':
+                    elementComponent = (
+                      <TipPill
+                        key={`el-${index}`}
+                        description={item.text || item.description}
+                        onUpdate={(newText) =>
+                          handleUpdateElementField(
+                            index,
+                            item.description !== undefined
+                              ? 'description'
+                              : 'text',
+                            newText
+                          )
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'WarningPill':
+                    elementComponent = (
+                      <WarningPill
+                        key={`el-${index}`}
+                        description={item.text || item.description}
+                        onUpdate={(newText) =>
+                          handleUpdateElementField(
+                            index,
+                            item.description !== undefined
+                              ? 'description'
+                              : 'text',
+                            newText
+                          )
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'ImportantPill':
+                    elementComponent = (
+                      <ImportantPill
+                        key={`el-${index}`}
+                        description={item.text || item.description}
+                        onUpdate={(newText) =>
+                          handleUpdateElementField(
+                            index,
+                            item.description !== undefined
+                              ? 'description'
+                              : 'text',
+                            newText
+                          )
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'SuccessPill':
+                    elementComponent = (
+                      <SuccessPill
+                        key={`el-${index}`}
+                        description={item.text || item.description}
+                        onUpdate={(newText) =>
+                          handleUpdateElementField(
+                            index,
+                            item.description !== undefined
+                              ? 'description'
+                              : 'text',
+                            newText
+                          )
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'VocabularyPill':
+                    elementComponent = (
+                      <VocabularyPill
+                        key={`el-${index}`}
+                        description={item.text || item.description}
+                        onUpdate={(newText) =>
+                          handleUpdateElementField(
+                            index,
+                            item.description !== undefined
+                              ? 'description'
+                              : 'text',
+                            newText
+                          )
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'VideoPill':
+                  case 'Video':
+                    elementComponent = (
+                      <VideoPill
+                        key={`el-${index}`}
+                        title={item.title || ''}
+                        videoUrl={item.videoUrl || item.url || null}
+                        caption={item.caption || ''}
+                        onUpdateTitle={(newTitle) =>
+                          handleUpdateElementField(index, 'title', newTitle)
+                        }
+                        onUpdateVideoUrl={(newUrl) =>
+                          handleUpdateElementField(index, 'videoUrl', newUrl)
+                        }
+                        onUpdateCaption={(newCaption) =>
+                          handleUpdateElementField(
+                            index,
+                            'caption',
+                            newCaption
+                          )
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'Credits': {
+                    elementComponent = (
+                      <ContributorsPill
+                        key={`el-${index}`}
+                        text={item.text || ''}
+                        onUpdateText={(newText) =>
+                          handleUpdateElementField(index, 'text', newText)
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  }
+                  default:
+                    elementComponent = null;
+                }
+
+                return (
                   <View
+                    key={`group-${index}`}
                     style={{
+                      position: 'relative',
                       width: '100%',
                       maxWidth: 650,
+                      paddingHorizontal: 0,
                       alignSelf: isMobile ? 'center' : 'flex-start',
-                      marginBottom: 20,
+                      paddingTop: loggedIn ? 8 : 0,
                     }}>
-                    <AddElementContainer index={-1} onAdd={handleAddElement} />
-                  </View>
-                )
-              : pageElements.map((item, index) => {
-                  let elementComponent = null;
-
-                  switch (item.type) {
-                    case 'Title':
-                      elementComponent = (
-                        <Title
-                          key={`el-${index}`}
-                          section={activeSection}
-                          lesson={activeLesson}
-                        />
-                      );
-                      break;
-                    case 'HeaderText':
-                      elementComponent = (
-                        <HeaderText
-                          key={`el-${index}`}
-                          title={item.text}
-                          onUpdate={(newText) =>
-                            handleUpdateElementField(index, 'text', newText)
-                          }
-                          setHasSaved={setHasSaved}
-                          loggedIn={loggedIn}
-                        />
-                      );
-                      break;
-                    case 'Paragraph':
-                      elementComponent = (
-                        <Paragraph
-                          key={`el-${index}`}
-                          text={item.text}
-                          onUpdate={(newText) =>
-                            handleUpdateElementField(index, 'text', newText)
-                          }
-                          setHasSaved={setHasSaved}
-                          loggedIn={loggedIn}
-                        />
-                      );
-                      break;
-                    case 'CodePill':
-                      elementComponent = (
-                        <CodePill
-                          key={`el-${index}`}
-                          description={item.text || item.description}
-                          language={item.language}
-                          onUpdate={(newText) =>
-                            handleUpdateElementField(
-                              index,
-                              item.description !== undefined
-                                ? 'description'
-                                : 'text',
-                              newText
-                            )
-                          }
-                          setHasSaved={setHasSaved}
-                          loggedIn={loggedIn}
-                        />
-                      );
-                      break;
-                    case 'TipPill':
-                      elementComponent = (
-                        <TipPill
-                          key={`el-${index}`}
-                          description={item.text || item.description}
-                          onUpdate={(newText) =>
-                            handleUpdateElementField(
-                              index,
-                              item.description !== undefined
-                                ? 'description'
-                                : 'text',
-                              newText
-                            )
-                          }
-                          setHasSaved={setHasSaved}
-                          loggedIn={loggedIn}
-                        />
-                      );
-                      break;
-                    case 'WarningPill':
-                      elementComponent = (
-                        <WarningPill
-                          key={`el-${index}`}
-                          description={item.text || item.description}
-                          onUpdate={(newText) =>
-                            handleUpdateElementField(
-                              index,
-                              item.description !== undefined
-                                ? 'description'
-                                : 'text',
-                              newText
-                            )
-                          }
-                          setHasSaved={setHasSaved}
-                          loggedIn={loggedIn}
-                        />
-                      );
-                      break;
-                    case 'ImportantPill':
-                      elementComponent = (
-                        <ImportantPill
-                          key={`el-${index}`}
-                          description={item.text || item.description}
-                          onUpdate={(newText) =>
-                            handleUpdateElementField(
-                              index,
-                              item.description !== undefined
-                                ? 'description'
-                                : 'text',
-                              newText
-                            )
-                          }
-                          setHasSaved={setHasSaved}
-                          loggedIn={loggedIn}
-                        />
-                      );
-                      break;
-                    case 'SuccessPill':
-                      elementComponent = (
-                        <SuccessPill
-                          key={`el-${index}`}
-                          description={item.text || item.description}
-                          onUpdate={(newText) =>
-                            handleUpdateElementField(
-                              index,
-                              item.description !== undefined
-                                ? 'description'
-                                : 'text',
-                              newText
-                            )
-                          }
-                          setHasSaved={setHasSaved}
-                          loggedIn={loggedIn}
-                        />
-                      );
-                      break;
-                    case 'VocabularyPill':
-                      elementComponent = (
-                        <VocabularyPill
-                          key={`el-${index}`}
-                          description={item.text || item.description}
-                          onUpdate={(newText) =>
-                            handleUpdateElementField(
-                              index,
-                              item.description !== undefined
-                                ? 'description'
-                                : 'text',
-                              newText
-                            )
-                          }
-                          setHasSaved={setHasSaved}
-                          loggedIn={loggedIn}
-                        />
-                      );
-                      break;
-                    case 'VideoPill':
-                    case 'Video':
-                      elementComponent = (
-                        <VideoPill
-                          key={`el-${index}`}
-                          title={item.title || ''}
-                          videoUrl={item.videoUrl || item.url || null}
-                          caption={item.caption || ''}
-                          onUpdateTitle={(newTitle) =>
-                            handleUpdateElementField(index, 'title', newTitle)
-                          }
-                          onUpdateVideoUrl={(newUrl) =>
-                            handleUpdateElementField(index, 'videoUrl', newUrl)
-                          }
-                          onUpdateCaption={(newCaption) =>
-                            handleUpdateElementField(
-                              index,
-                              'caption',
-                              newCaption
-                            )
-                          }
-                          setHasSaved={setHasSaved}
-                          loggedIn={loggedIn}
-                        />
-                      );
-                      break;
-                    case 'Credits': {
-                      elementComponent = (
-                        <ContributorsPill
-                          key={`el-${index}`}
-                          text={item.text || ''}
-                          onUpdateText={(newText) =>
-                            handleUpdateElementField(index, 'text', newText)
-                          }
-                          setHasSaved={setHasSaved}
-                          loggedIn={loggedIn}
-                        />
-                      );
-                      break;
-                    }
-                    default:
-                      elementComponent = null;
-                  }
-
-                  return (
-                    <View
-                      key={`group-${index}`}
-                      style={{
-                        position: 'relative',
-                        width: '100%',
-                        maxWidth: 650,
-                        paddingHorizontal: 0,
-                        alignSelf: isMobile ? 'center' : 'flex-start',
-                        paddingTop: loggedIn ? 8 : 0,
-                      }}>
-                      {loggedIn && item.type !== 'Credits' && (
-                        <View
-                          style={{
-                            position: 'absolute',
-                            top: 18,
-                            right: 18,
-                            zIndex: 999,
-                            flexDirection: 'row',
-                            gap: 4,
-                            alignItems: 'center',
-                          }}>
-                          <TouchableOpacity
-                            style={{
-                              backgroundColor:
-                                index === 0 ? '#E2E8F0' : '#EDF2F7',
-                              width: 28,
-                              height: 28,
-                              borderRadius: 14,
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                              elevation: 3,
-                              opacity: index === 0 ? 0.5 : 1,
-                            }}
-                            disabled={index === 0}
-                            onPress={() => handleMoveElementUp(index)}>
-                            <Text
-                              style={{
-                                color: '#4A5568',
-                                fontWeight: 'bold',
-                                fontSize: 12,
-                              }}>
-                              ▲
-                            </Text>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={{
-                              backgroundColor:
-                                index === pageElements.length - 1
-                                  ? '#E2E8F0'
-                                  : '#EDF2F7',
-                              width: 28,
-                              height: 28,
-                              borderRadius: 14,
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                              elevation: 3,
-                              opacity:
-                                index === pageElements.length - 1 ? 0.5 : 1,
-                            }}
-                            disabled={index === pageElements.length - 1}
-                            onPress={() => handleMoveElementDown(index)}>
-                            <Text
-                              style={{
-                                color: '#4A5568',
-                                fontWeight: 'bold',
-                                fontSize: 12,
-                              }}>
-                              ▼
-                            </Text>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={{
-                              backgroundColor: '#FED7D7',
-                              width: 28,
-                              height: 28,
-                              borderRadius: 14,
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                              elevation: 3,
-                            }}
-                            onPress={() => handleDeleteElement(index)}
-                            hitSlop={{
-                              top: 10,
-                              bottom: 10,
-                              left: 10,
-                              right: 10,
-                            }}>
-                            <Text
-                              style={{
-                                color: '#E53E3E',
-                                fontWeight: 'bold',
-                                fontSize: 13,
-                                lineHeight: 15,
-                              }}>
-                              ✕
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-
+                    {loggedIn && item.type !== 'Credits' && (
                       <View
-                        style={{ marginTop: loggedIn ? 6 : 0, width: '100%' }}>
-                        {elementComponent}
-                      </View>
+                        style={{
+                          position: 'absolute',
+                          top: 18,
+                          right: 18,
+                          zIndex: 999,
+                          flexDirection: 'row',
+                          gap: 4,
+                          alignItems: 'center',
+                        }}>
+                        <TouchableOpacity
+                          style={{
+                            backgroundColor:
+                              index === 0 ? '#E2E8F0' : '#EDF2F7',
+                            width: 28,
+                            height: 28,
+                            borderRadius: 14,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            elevation: 3,
+                            opacity: index === 0 ? 0.5 : 1,
+                          }}
+                          disabled={index === 0}
+                          onPress={() => handleMoveElementUp(index)}>
+                          <Text
+                            style={{
+                              color: '#4A5568',
+                              fontWeight: 'bold',
+                              fontSize: 12,
+                            }}>
+                            ▲
+                          </Text>
+                        </TouchableOpacity>
 
-                      {loggedIn && item.type !== 'Credits' && (
-                        <AddElementContainer
-                          index={index}
-                          onAdd={handleAddElement}
-                        />
-                      )}
+                        <TouchableOpacity
+                          style={{
+                            backgroundColor:
+                              index === pageElements.length - 1
+                                ? '#E2E8F0'
+                                : '#EDF2F7',
+                            width: 28,
+                            height: 28,
+                            borderRadius: 14,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            elevation: 3,
+                            opacity:
+                              index === pageElements.length - 1 ? 0.5 : 1,
+                          }}
+                          disabled={index === pageElements.length - 1}
+                          onPress={() => handleMoveElementDown(index)}>
+                          <Text
+                            style={{
+                              color: '#4A5568',
+                              fontWeight: 'bold',
+                              fontSize: 12,
+                            }}>
+                            ▼
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={{
+                            backgroundColor: '#FED7D7',
+                            width: 28,
+                            height: 28,
+                            borderRadius: 14,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            elevation: 3,
+                          }}
+                          onPress={() => handleDeleteElement(index)}
+                          hitSlop={{
+                            top: 10,
+                            bottom: 10,
+                            left: 10,
+                            right: 10,
+                          }}>
+                          <Text
+                            style={{
+                              color: '#E53E3E',
+                              fontWeight: 'bold',
+                              fontSize: 13,
+                              lineHeight: 15,
+                            }}>
+                            ✕
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    <View
+                      style={{ marginTop: loggedIn ? 6 : 0, width: '100%' }}>
+                      {elementComponent}
                     </View>
-                  );
-                })}
+
+                    {loggedIn && item.type !== 'Credits' && (
+                      <AddElementContainer
+                        index={index}
+                        onAdd={handleAddElement}
+                      />
+                    )}
+                  </View>
+                );
+              })}
           </ScrollView>
         )}
 

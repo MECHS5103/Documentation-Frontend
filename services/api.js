@@ -1,6 +1,7 @@
 // services/api.js
 export const API_URL =
-  'https://script.google.com/macros/s/AKfycbz3b2ncvEKcdHMvsdwukIR9EATgIPZG0pk4ry-NpyIHFYWxZAPqJY1Va9b6vuVuoSf5jw/exec';
+  'https://api.team5103.com/api';
+// 'https://script.google.com/macros/s/AKfycbz3b2ncvEKcdHMvsdwukIR9EATgIPZG0pk4ry-NpyIHFYWxZAPqJY1Va9b6vuVuoSf5jw/exec';
 
 export const postApi = async (body) => {
   const response = await fetch(API_URL, {
