@@ -1,6 +1,6 @@
 // hooks/useFetchData.js
 import { useEffect } from 'react';
-import { API_URL, fetchLessonDocument } from '../services/api';
+import { fetchLessonDocument, getApiUrl } from '../services/api';
 import dataCache from '../services/cache';
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
@@ -71,7 +71,7 @@ const useFetchData = ({
     if (isStale) {
       const fetchTocData = async () => {
         try {
-          const url = `${API_URL}?category=${encodeURIComponent(navPanel)}&toc=true`;
+          const url = `${getApiUrl()}?category=${encodeURIComponent(navPanel)}&toc=true`;
 
           const response = await fetch(url, {
             method: 'GET',

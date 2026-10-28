@@ -1,0 +1,9 @@
+# KadeDr owns the production paths until the organization creates a dedicated
+# programming-leads team and replaces this entry with that team slug.
+* @KadeDr
+
+/.github/workflows/ @KadeDr
+/apps-script/ @KadeDr
+/firebase.json @KadeDr
+/firebase/ @KadeDr
+/scripts/ @KadeDr

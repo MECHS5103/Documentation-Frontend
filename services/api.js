@@ -1,10 +1,16 @@
 // services/api.js
 export const API_URL =
-  'https://api.team5103.com/api';
-// 'https://script.google.com/macros/s/AKfycbz3b2ncvEKcdHMvsdwukIR9EATgIPZG0pk4ry-NpyIHFYWxZAPqJY1Va9b6vuVuoSf5jw/exec';
+  process.env.EXPO_PUBLIC_APPS_SCRIPT_URL || '';
+
+export const getApiUrl = () => {
+  if (!API_URL) {
+    throw new Error('The documentation API is not configured for this deployment.');
+  }
+  return API_URL;
+};
 
 export const postApi = async (body) => {
-  const response = await fetch(API_URL, {
+  const response = await fetch(getApiUrl(), {
     method: 'POST',
     headers: {
       'Content-Type': 'text/plain;charset=utf-8',
@@ -30,7 +36,7 @@ export const fetchLessonDocument = async (catArg, secArg, lesArg) => {
     return { data: [], version: 0 };
   }
 
-  const url = `${API_URL}?category=${encodeURIComponent(
+  const url = `${getApiUrl()}?category=${encodeURIComponent(
     category
   )}&section=${encodeURIComponent(section)}&lesson=${encodeURIComponent(
     lesson

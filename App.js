@@ -12,6 +12,7 @@ import { useFonts, Chewy_400Regular } from '@expo-google-fonts/chewy';
 
 import useFetchData from './hooks/useFetchData';
 import dataCache from './services/cache';
+import { postApi } from './services/api';
 import {
   getEditorIdToken,
   observeEditorAuthState,
@@ -299,30 +300,19 @@ export default function App() {
 
     try {
       const idToken = await getEditorIdToken();
-      const response = await fetch(
-        'https://api.team5103.com/api/save',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            action: 'saveContent',
-            idToken,
-            category: navPanel,
-            section: activeSection,
-            lesson: activeLesson,
-            expectedPageVersion: pageVersion,
-            expectedTocVersion: tocVersion,
-            tocData: dataToSave,
-            pageElements: updatedPageElements,
-          }),
-        }
-      );
-
-      const result = await response.json();
+      const result = await postApi({
+        action: 'saveContent',
+        idToken,
+        category: navPanel,
+        section: activeSection,
+        lesson: activeLesson,
+        expectedPageVersion: pageVersion,
+        expectedTocVersion: tocVersion,
+        tocData: dataToSave,
+        pageElements: updatedPageElements,
+      });
       if (result.status === 'success') {
-        alert('Data saved successfully to your Pi!');
+        alert('Data saved successfully!');
         setHasSaved(true);
         setPageVersion(result.pageVersion);
         setTocVersion(result.tocVersion);

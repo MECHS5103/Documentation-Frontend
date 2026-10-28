@@ -1,0 +1,55 @@
+name: Deploy Firebase rules
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-firebase-rules
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    environment: production-firebase
+    steps:
+      - name: Check out reviewed source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify Firebase rules
+        run: |
+          test -s firebase.json
+          test -s firebase/storage.rules
+          npm run test:storage-rules
+
+      - name: Configure Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Deploy Storage rules
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: |
+          test -n "$FIREBASE_PROJECT_ID"
+          npx --yes firebase-tools@15.34.1 deploy \
+            --only storage \
+            --project "$FIREBASE_PROJECT_ID" \
+            --non-interactive
+          printf 'Firebase Storage rules deployed from `%s`.\n' \
+            "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,57 @@
+name: Verify source
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out reviewed source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Test Apps Script
+        run: npm run test:apps-script
+
+      - name: Test Firebase Storage rules
+        run: npm run test:storage-rules
+
+      - name: Build the web artifact
+        run: npm run build:web
+
+      - name: Verify deployment metadata
+        run: |
+          test -s dist/index.html
+          test -s dist/404.html
+          test -s dist/CNAME
+          test -s dist/.nojekyll
+          test -s dist/build-metadata.json
+          node -e 'const m=require("./dist/build-metadata.json"); if(m.sourceRevision!==process.env.GITHUB_SHA) process.exit(1)'
+
+      - name: Retain the reviewed preview artifact
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: pages-preview-${{ github.sha }}
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
