@@ -105,7 +105,20 @@ export const Header = ({
         )}
 
         {/* Sign Out / Login Button */}
-        <Pressable onPress={() => (loggedIn ? setLoggedIn(false) : setLoginVisible(!loginVisible))}>
+        <Pressable
+          onPress={() => {
+            if (loggedIn) {
+              setLoggedIn(false);
+              return;
+            }
+
+            if (loginVisible) {
+              setPassword('');
+              setLoginVisible(false);
+            } else {
+              setLoginVisible(true);
+            }
+          }}>
           <Text
             style={{
               color: '#FFFFFF',

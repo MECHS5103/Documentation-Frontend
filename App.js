@@ -217,7 +217,7 @@ export default function App() {
     }
   }, [pageElements]);
 
-  const getUserLastName = async () => {
+  const getUserLastName = async (credentialPassword) => {
     try {
       const response = await fetch(
         'https://script.google.com/macros/s/AKfycbz3b2ncvEKcdHMvsdwukIR9EATgIPZG0pk4ry-NpyIHFYWxZAPqJY1Va9b6vuVuoSf5jw/exec',
@@ -229,7 +229,7 @@ export default function App() {
           body: JSON.stringify({
             action: 'doGetUserLast',
             user: username,
-            pass: password,
+            pass: credentialPassword,
           }),
         }
       );
@@ -254,6 +254,8 @@ export default function App() {
   };
 
   const handleLogin = async () => {
+    const submittedPassword = password;
+
     try {
       const response = await fetch(
         'https://script.google.com/macros/s/AKfycbz3b2ncvEKcdHMvsdwukIR9EATgIPZG0pk4ry-NpyIHFYWxZAPqJY1Va9b6vuVuoSf5jw/exec',
@@ -265,7 +267,7 @@ export default function App() {
           body: JSON.stringify({
             action: 'doTestCredentials',
             user: username,
-            pass: password,
+            pass: submittedPassword,
           }),
         }
       );
@@ -280,12 +282,14 @@ export default function App() {
           localStorage.setItem('user_username', username);
         }
 
-        getUserLastName();
+        await getUserLastName(submittedPassword);
       } else {
         alert('Incorrect username or password');
       }
     } catch (error) {
       console.error('Network communication error:', error);
+    } finally {
+      setPassword('');
     }
   };
 
@@ -459,6 +463,12 @@ export default function App() {
         loggedIn={loggedIn}
         setLoggedIn={(val) => {
           setLoggedIn(val);
+          if (!val) {
+            setPassword('');
+            setLoginVisible(false);
+            setUsername('');
+            setLastName('');
+          }
           if (typeof window !== 'undefined' && window.localStorage) {
             if (val) {
               localStorage.setItem('is_logged_in', 'true');
@@ -466,8 +476,6 @@ export default function App() {
               localStorage.removeItem('is_logged_in');
               localStorage.removeItem('user_username');
               localStorage.removeItem('user_last_name');
-              setUsername('');
-              setLastName('');
             }
           }
         }}

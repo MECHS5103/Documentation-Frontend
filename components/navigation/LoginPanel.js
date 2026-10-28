@@ -30,6 +30,10 @@ export const LoginPanel = ({
         <TextInput
           value={username}
           onChangeText={(text) => setUsername(text)}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="username"
+          textContentType="username"
           placeholder=""
           style={{
             width: '100%',
@@ -45,6 +49,10 @@ export const LoginPanel = ({
           secureTextEntry
           value={password}
           onChangeText={(text) => setPassword(text)}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="current-password"
+          textContentType="password"
           placeholder=""
           style={{
             width: '100%',
