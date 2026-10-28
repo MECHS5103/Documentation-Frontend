@@ -120,37 +120,47 @@ function doGet(e) {
   }
 }
 
-function doTestCredentials(user, pass) {
-  var credentialsSheet = SpreadsheetApp.openById("16zAOsI_j2HJnsle44EoU7f7BXOd6UP0lA1Q3mcSpbio");
-  var credentialsTab = credentialsSheet.getSheetByName("Data");
-  var data = credentialsTab.getDataRange().getValues();
-
-  for (var i = 0; i < data.length; i++) {
-    var username = data[i][0].toString();
-    if (username == user) {
-      if (data[i][1].toString() == pass) {
-        return "true";
-      }
-    }
+function findCredentialRecord(user, pass) {
+  if (
+    typeof user !== "string" ||
+    typeof pass !== "string" ||
+    user.trim() === "" ||
+    pass === "" ||
+    user.length > 256 ||
+    pass.length > 1024
+  ) {
+    return null;
   }
 
-  return false;
-}
-
-function doGetUserLast(user) {
   var credentialsSheet = SpreadsheetApp.openById("16zAOsI_j2HJnsle44EoU7f7BXOd6UP0lA1Q3mcSpbio");
   var credentialsTab = credentialsSheet.getSheetByName("Data");
   var data = credentialsTab.getDataRange().getValues();
 
   for (var i = 0; i < data.length; i++) {
-    if (data[i][0] == user) {
-      var name = data[i][2];
-      name = (name !== null && name !== undefined) ? String(name).trim() : "";
-      return name === "" ? " " : name;
+    var username = String(data[i][0]);
+    var password = String(data[i][1]);
+
+    if (username === user && password === pass) {
+      var lastName = data[i][2];
+      return {
+        lastName: (lastName !== null && lastName !== undefined)
+          ? String(lastName).trim()
+          : ""
+      };
     }
   }
 
   return null;
+}
+
+function doTestCredentials(user, pass) {
+  return findCredentialRecord(user, pass) !== null;
+}
+
+function doGetUserLast(user, pass) {
+  var credential = findCredentialRecord(user, pass);
+  if (credential === null) return null;
+  return credential.lastName === "" ? " " : credential.lastName;
 }
 
 function doPost(e) {
@@ -174,13 +184,26 @@ function doPost(e) {
     }
 
     if (data.action === "doTestCredentials") {
-      var isValid = doTestCredentials(data.user, data.pass);
-      return createResponse(isValid ? "success" : "error", isValid ? "Access Granted" : "Access Denied");
+      try {
+        var isValid = doTestCredentials(data.user, data.pass);
+        return createResponse(isValid ? "success" : "error", isValid ? "Access Granted" : "Access Denied");
+      } catch (authError) {
+        console.error("Credential lookup failed", authError);
+        return createResponse("error", "Authentication service unavailable.");
+      }
     }
 
-    if (data.action == "doGetUserLast") {
-      var userLast = doGetUserLast(data.user);
-      return createResponse(userLast !== null ? "success" : "error", userLast);
+    if (data.action === "doGetUserLast") {
+      try {
+        var userLast = doGetUserLast(data.user, data.pass);
+        return createResponse(
+          userLast !== null ? "success" : "error",
+          userLast !== null ? userLast : "Access Denied"
+        );
+      } catch (profileError) {
+        console.error("Profile lookup failed", profileError);
+        return createResponse("error", "Authentication service unavailable.");
+      }
     }
 
     var category = data.category;
