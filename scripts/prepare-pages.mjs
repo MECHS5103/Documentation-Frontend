@@ -45,7 +45,6 @@ const metadata = {
   builtAt: process.env.BUILD_TIMESTAMP || new Date().toISOString(),
   inputs: {
     lockfileSha256: await sha256(path.join(root, 'package-lock.json')),
-    appsScriptSha256: await sha256(path.join(root, 'apps-script/src/Code.gs')),
     firebaseConfigSha256: await sha256IfPresent(
       path.join(root, 'firebase.json')
     ),

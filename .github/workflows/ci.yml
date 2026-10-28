@@ -27,11 +27,14 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 21
+
       - name: Install locked dependencies
         run: npm ci
-
-      - name: Test Apps Script
-        run: npm run test:apps-script
 
       - name: Test Firebase Storage rules
         run: npm run test:storage-rules
@@ -44,7 +47,7 @@ jobs:
           test -s dist/index.html
           test -s dist/404.html
           test -s dist/CNAME
-          test -s dist/.nojekyll
+          test -f dist/.nojekyll
           test -s dist/build-metadata.json
           node -e 'const m=require("./dist/build-metadata.json"); if(m.sourceRevision!==process.env.GITHUB_SHA) process.exit(1)'
 
