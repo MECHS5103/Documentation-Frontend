@@ -1,0 +1,9 @@
+cloudflare_zone_id = "0123456789abcdef0123456789abcdef"
+site_hostname      = "docs.team5103.com"
+
+# HSTS is intentionally disabled for the first deployment. Enable it only after
+# the staged rollout in README.md and begin with the short default max-age.
+enable_hsts            = false
+hsts_max_age           = 300
+hsts_include_subdomains = false
+hsts_preload            = false
