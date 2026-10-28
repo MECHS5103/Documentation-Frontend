@@ -35,6 +35,14 @@ import {
   VocabularyPill,
 } from './components/pills/PillVariants';
 
+const safeDecodeURIComponent = (value) => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
 export default function App() {
   let [fontsLoaded] = useFonts({
     Chewy: Chewy_400Regular,
@@ -84,9 +92,9 @@ export default function App() {
     if (p) {
       const segments = p.split('/').filter(Boolean);
       return {
-        panel: segments[0] ? decodeURIComponent(segments[0]) : 'Landing Page',
-        section: segments[1] ? decodeURIComponent(segments[1]) : '',
-        lesson: segments[2] ? decodeURIComponent(segments[2]) : '',
+        panel: segments[0] ? safeDecodeURIComponent(segments[0]) : 'Landing Page',
+        section: segments[1] ? safeDecodeURIComponent(segments[1]) : '',
+        lesson: segments[2] ? safeDecodeURIComponent(segments[2]) : '',
         isExplicit: true,
       };
     }
@@ -101,9 +109,9 @@ export default function App() {
     }
 
     return {
-      panel: segments[0] ? decodeURIComponent(segments[0]) : 'Landing Page',
-      section: segments[1] ? decodeURIComponent(segments[1]) : '',
-      lesson: segments[2] ? decodeURIComponent(segments[2]) : '',
+      panel: segments[0] ? safeDecodeURIComponent(segments[0]) : 'Landing Page',
+      section: segments[1] ? safeDecodeURIComponent(segments[1]) : '',
+      lesson: segments[2] ? safeDecodeURIComponent(segments[2]) : '',
       isExplicit: true,
     };
   };
