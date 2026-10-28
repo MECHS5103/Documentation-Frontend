@@ -7,6 +7,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "test:storage-rules": "firebase emulators:exec --project demo-team5103-storage --only storage \"node --test test/storage.rules.test.cjs\"",
     "predeploy": "npx expo export --platform web && copy .nojekyll dist\\.nojekyll && copy 404.html dist\\404.html",
     "deploy": "gh-pages -d dist --dotfiles"
   },
@@ -24,7 +25,9 @@
   },
   "private": true,
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
     "firebase-admin": "^14.5.0",
+    "firebase-tools": "^15.34.1",
     "gh-pages": "^6.3.0"
   }
 }

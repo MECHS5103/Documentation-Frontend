@@ -55,8 +55,7 @@ export const VideoPill = ({
       setProgress(0);
 
       const downloadURL = await uploadVideoToFirebase(
-        file.uri,
-        file.name,
+        file,
         (percent) => setProgress(percent)
       );
 
@@ -69,7 +68,7 @@ export const VideoPill = ({
       }
     } catch (err) {
       console.error('Video Upload Error:', err);
-      alert('Upload Error', err.message || 'Failed to upload video.');
+      alert(err.message || 'Failed to upload video.');
     } finally {
       setUploading(false);
     }
