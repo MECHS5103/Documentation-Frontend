@@ -115,7 +115,11 @@ function doGet(e) {
     return ContentService.createTextOutput(JSON.stringify({ data: responseArray }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ error: err.toString() }))
+    console.error("Content read failed", err);
+    return ContentService.createTextOutput(JSON.stringify({
+      error: "The requested content could not be loaded.",
+      code: "INTERNAL_ERROR"
+    }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 }
@@ -215,16 +219,121 @@ function applyAuthenticatedContributor(pageElements, existingContributors, princ
   return withoutClientCredits;
 }
 
+function invalidPayload(message) {
+  var error = new Error(message);
+  error.code = "INVALID_PAYLOAD";
+  throw error;
+}
+
+function requireString(value, field, maxLength, allowEmpty) {
+  if (typeof value !== "string") invalidPayload(field + " must be a string.");
+  var normalized = value.trim();
+  if (!allowEmpty && normalized === "") invalidPayload(field + " is required.");
+  if (value.length > maxLength) invalidPayload(field + " is too long.");
+  return normalized;
+}
+
+function validateSavePayload(data) {
+  if (!data || Object.prototype.toString.call(data) !== "[object Object]") {
+    invalidPayload("The request body must be an object.");
+  }
+  if (!Array.isArray(data.tocData) || !Array.isArray(data.pageElements)) {
+    invalidPayload("tocData and pageElements must be arrays.");
+  }
+  if (data.tocData.length > 500 || data.pageElements.length > 200) {
+    invalidPayload("The request contains too many elements.");
+  }
+
+  var category = requireString(data.category, "category", 80, false);
+  var section = requireString(data.section, "section", 160, false);
+  var lesson = requireString(data.lesson, "lesson", 160, false);
+  if (/[\\/:*?\[\]]/.test(category)) {
+    invalidPayload("category contains unsupported characters.");
+  }
+
+  var tocTypes = { SubjectText: true, LessonText: true };
+  var pageTypes = {
+    Title: true,
+    HeaderText: true,
+    Paragraph: true,
+    VideoPill: true,
+    Video: true,
+    TipPill: true,
+    WarningPill: true,
+    CodePill: true,
+    ImportantPill: true,
+    SuccessPill: true,
+    VocabularyPill: true,
+    Credits: true
+  };
+
+  var tocData = data.tocData.map(function (item) {
+    if (!item || Object.prototype.toString.call(item) !== "[object Object]") {
+      invalidPayload("Every TOC item must be an object.");
+    }
+    var type = requireString(item.type, "tocData.type", 40, false);
+    if (!tocTypes[type]) invalidPayload("Unsupported TOC item type.");
+    return {
+      type: type,
+      text: requireString(item.text, "tocData.text", 300, false)
+    };
+  });
+
+  var pageElements = data.pageElements.map(function (item) {
+    if (!item || Object.prototype.toString.call(item) !== "[object Object]") {
+      invalidPayload("Every page element must be an object.");
+    }
+    var type = requireString(item.type, "pageElements.type", 40, false);
+    if (!pageTypes[type]) invalidPayload("Unsupported page element type.");
+
+    var normalized = { type: type };
+    if (type === "VideoPill" || type === "Video") {
+      normalized.title = requireString(item.title || "", "video.title", 300, true);
+      normalized.caption = requireString(item.caption || "", "video.caption", 2000, true);
+      normalized.videoUrl = requireString(
+        item.videoUrl || item.url || "",
+        "video.videoUrl",
+        2048,
+        true
+      );
+      if (normalized.videoUrl && !/^https:\/\//i.test(normalized.videoUrl)) {
+        invalidPayload("Video URLs must use HTTPS.");
+      }
+    } else {
+      normalized.text = requireString(
+        item.text !== undefined ? item.text : (item.description || ""),
+        "pageElements.text",
+        20000,
+        true
+      );
+      normalized.language = requireString(item.language || "", "pageElements.language", 80, true);
+    }
+    return normalized;
+  });
+
+  return {
+    category: category,
+    section: section,
+    lesson: lesson,
+    tocData: tocData,
+    pageElements: pageElements
+  };
+}
+
 function doPost(e) {
-  var createResponse = function (status, payload) {
+  var createResponse = function (status, payload, code) {
     var output = { status: status, message: payload };
+    if (code) output.code = code;
     return ContentService.createTextOutput(JSON.stringify(output))
       .setMimeType(ContentService.MimeType.JSON);
   };
 
   try {
     if (!e || !e.postData || !e.postData.contents) {
-      return createResponse("error", "No data received in request body.");
+      return createResponse("error", "No data received in request body.", "EMPTY_BODY");
+    }
+    if (e.postData.contents.length > 1000000) {
+      return createResponse("error", "Request body is too large.", "PAYLOAD_TOO_LARGE");
     }
 
     var data;
@@ -232,11 +341,11 @@ function doPost(e) {
     try {
       data = JSON.parse(e.postData.contents);
     } catch (parseErr) {
-      return createResponse("error", "Invalid JSON payload: " + parseErr.toString());
+      return createResponse("error", "Invalid JSON payload.", "INVALID_JSON");
     }
 
     if (data.action !== "saveContent") {
-      return createResponse("error", "Unsupported action.");
+      return createResponse("error", "Unsupported action.", "UNSUPPORTED_ACTION");
     }
 
     var principal;
@@ -244,14 +353,24 @@ function doPost(e) {
       principal = verifyEditorToken(data.idToken);
     } catch (authError) {
       console.warn("Denied content mutation", authError.message);
-      return createResponse("error", "Access Denied");
+      return createResponse("error", "Access Denied", "ACCESS_DENIED");
     }
 
-    var category = data.category;
-    var section = data.section;
-    var lesson = data.lesson;
-    var tocData = data.tocData || [];
-    var pageElements = data.pageElements || [];
+    var payload;
+    try {
+      payload = validateSavePayload(data);
+    } catch (validationError) {
+      if (validationError.code === "INVALID_PAYLOAD") {
+        return createResponse("error", validationError.message, "INVALID_PAYLOAD");
+      }
+      throw validationError;
+    }
+
+    var category = payload.category;
+    var section = payload.section;
+    var lesson = payload.lesson;
+    var tocData = payload.tocData;
+    var pageElements = payload.pageElements;
 
     var TOC_SPREADSHEET_ID = "1NwXxIsuYAzM44GuAqOUeq6vMNNY1HXX-MynpLd7smVQ";
     var PAGES_SPREADSHEET_ID = "159ATSwxFAs1NEoyuTmnSrpDPMCHZUaQK8SMT1Ayf1X4";
@@ -326,9 +445,10 @@ function doPost(e) {
       });
     }
 
-    return createResponse("success", "Data synchronized successfully!");
+    return createResponse("success", "Data synchronized successfully!", "OK");
   } catch (error) {
-    return createResponse("error", error.toString());
+    console.error("Unhandled request failure", error);
+    return createResponse("error", "The request could not be completed.", "INTERNAL_ERROR");
   }
 }
 

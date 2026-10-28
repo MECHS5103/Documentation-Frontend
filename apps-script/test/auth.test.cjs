@@ -143,7 +143,7 @@ test('rejects anonymous mutations before any spreadsheet access', () => {
       tocData: [],
       pageElements: [],
     }),
-    { status: 'error', message: 'Access Denied' }
+    { status: 'error', message: 'Access Denied', code: 'ACCESS_DENIED' }
   );
 });
 
@@ -152,6 +152,7 @@ test('rejects unknown actions instead of falling through to writes', () => {
   assert.deepEqual(post(context, { action: 'unknown' }), {
     status: 'error',
     message: 'Unsupported action.',
+    code: 'UNSUPPORTED_ACTION',
   });
 });
 
