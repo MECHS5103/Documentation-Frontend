@@ -41,6 +41,17 @@ Import the existing security-header setting as well. The checked-in default then
 terraform import cloudflare_zone_setting.hsts "$CLOUDFLARE_ZONE_ID/security_header"
 ```
 
+Cloudflare permits only one zone entry-point ruleset for the response-header transform phase. Before applying `headers.tf`, list the zone rulesets and check for an existing `http_response_headers_transform` ruleset. If one exists, import it and merge every existing rule into `cloudflare_ruleset.security_headers`; otherwise Terraform would take ownership of the phase and could replace rules that are not represented in this configuration.
+
+```sh
+curl --fail --silent --show-error \
+  --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/rulesets"
+
+terraform import cloudflare_ruleset.security_headers \
+  "zone/$CLOUDFLARE_ZONE_ID/replace-with-response-header-ruleset-id"
+```
+
 ## Plan and apply
 
 Run formatting and validation before reviewing a plan:
@@ -62,6 +73,31 @@ curl -I https://docs.team5103.com/
 
 The HTTP response should be a redirect to the equivalent HTTPS URL. The HTTPS response should succeed with a valid certificate and negotiate TLS 1.2 or TLS 1.3.
 
+## Browser security headers
+
+The response transform is restricted to `site_hostname` and adds:
+
+- `Content-Security-Policy-Report-Only`
+- `Cross-Origin-Opener-Policy: same-origin-allow-popups`
+- `Cross-Origin-Resource-Policy: same-origin`
+- `Permissions-Policy`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+
+The report-only CSP accounts for the current Google Fonts, Firebase Authentication, Firebase App Check, Firebase Storage, Google sign-in popup, Apps Script, and blob-media flows. It intentionally retains inline script and style allowances required by the current static redirect and React Native Web output. Configure an HTTPS `csp_report_uri` to collect violations, or leave it empty and inspect the browser console and Cloudflare logs during the observation period.
+
+Do not replace the report-only header with an enforcing `Content-Security-Policy` until normal navigation, Google sign-in, save, video upload, and video playback have completed without unexplained violations. Tighten source allowances before enforcement where the application permits it.
+
+Verify the applied headers on the custom hostname:
+
+```sh
+curl --fail --silent --show-error --head https://docs.team5103.com/ | \
+  grep -Ei 'content-security-policy|cross-origin|permissions-policy|referrer-policy|x-content-type-options|x-frame-options'
+```
+
+Use Cloudflare Trace to confirm the response transform rule matched the expected hostname. Test Google sign-in specifically: `same-origin-allow-popups` is selected instead of the stricter `same-origin` so the Firebase sign-in popup can retain its opener relationship.
+
 ## HSTS rollout
 
 HSTS makes browsers refuse HTTP and can make a hostname unreachable if HTTPS later fails. Keep `enable_hsts = false` for the first deployment.
@@ -77,3 +113,5 @@ HSTS makes browsers refuse HTTP and can make a hostname unreachable if HTTPS lat
 Before the first apply, save the reviewed plan and record the current Cloudflare values. To roll back HTTPS/TLS changes, restore those captured values in Terraform and apply a new reviewed plan. Do not delete state or destroy the resources as a rollback method because that can reset Cloudflare settings to provider defaults.
 
 For an HSTS incident, set `enable_hsts = false` and apply the reviewed change to disable the header. Browsers that cached HSTS will retain it until the previously advertised max-age expires, which is why the rollout begins at 300 seconds.
+
+To roll back the documentation response transform without deleting its ruleset, set `enable_security_headers = false`, review the plan, and apply it. Re-enable individual headers only after identifying the incompatible policy. Because the CSP is report-only, CSP violations alone do not block application behavior.

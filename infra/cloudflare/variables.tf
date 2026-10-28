@@ -19,6 +19,23 @@ variable "site_hostname" {
   }
 }
 
+variable "enable_security_headers" {
+  description = "Enable the documentation-host response header transform rules."
+  type        = bool
+  default     = true
+}
+
+variable "csp_report_uri" {
+  description = "Optional HTTPS endpoint for Content-Security-Policy-Report-Only violation reports. Leave empty to use browser developer tooling only."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.csp_report_uri == "" || startswith(var.csp_report_uri, "https://")
+    error_message = "csp_report_uri must be empty or an HTTPS URL."
+  }
+}
+
 variable "enable_hsts" {
   description = "Manage and enable Cloudflare HSTS for the entire zone. Leave false until every required hostname is HTTPS-only."
   type        = bool
