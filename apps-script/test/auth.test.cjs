@@ -34,6 +34,7 @@ const validAccount = {
       emailVerified: true,
       displayName: 'Example Editor',
       disabled: false,
+      customAttributes: JSON.stringify({ editor: true }),
     },
   ],
 };
@@ -126,6 +127,20 @@ test('rejects disabled and unverified accounts', () => {
   const context = loadScript({
     responseBody: {
       users: [{ ...validAccount.users[0], disabled: true, emailVerified: false }],
+    },
+  });
+  assert.throws(() => context.verifyEditorToken(makeToken()), /Unauthorized/);
+});
+
+test('rejects a token after the editor claim is revoked server-side', () => {
+  const context = loadScript({
+    responseBody: {
+      users: [
+        {
+          ...validAccount.users[0],
+          customAttributes: JSON.stringify({ editor: false }),
+        },
+      ],
     },
   });
   assert.throws(() => context.verifyEditorToken(makeToken()), /Unauthorized/);

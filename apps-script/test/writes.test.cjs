@@ -48,11 +48,18 @@ test('builds one bounded page matrix without interpreting text', () => {
   const { context } = loadScript();
   const rows = context.buildPageRows('Category', 'Section', 'Lesson', [
     { type: 'Paragraph', text: '=IMPORTDATA("https://example.com")' },
-  ]);
+  ], 9);
 
   assert.deepEqual(JSON.parse(JSON.stringify(rows)), [
-    ['Category', 'Section', 'Lesson'],
-    ['Title', '', ''],
-    ['Paragraph', '=IMPORTDATA("https://example.com")', ''],
+    ['Category', 'Section', 'Lesson', 9],
+    ['Title', '', '', ''],
+    ['Paragraph', '=IMPORTDATA("https://example.com")', '', ''],
+  ]);
+});
+
+test('stores a TOC revision even when the TOC is empty', () => {
+  const { context } = loadScript();
+  assert.deepEqual(JSON.parse(JSON.stringify(context.buildTocRows([], 3))), [
+    ['', '', 3],
   ]);
 });

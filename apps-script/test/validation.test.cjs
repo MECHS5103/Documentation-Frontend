@@ -21,6 +21,8 @@ const validPayload = () => ({
   category: 'Programming',
   section: 'JavaScript',
   lesson: 'Variables',
+  expectedPageVersion: 4,
+  expectedTocVersion: 7,
   tocData: [{ type: 'LessonText', text: 'Variables' }],
   pageElements: [
     { type: 'Paragraph', text: 'Use const for values that do not change.' },
@@ -38,6 +40,8 @@ test('normalizes a complete save payload', () => {
   const result = context.validateSavePayload(validPayload());
   assert.equal(result.category, 'Programming');
   assert.equal(result.pageElements.length, 2);
+  assert.equal(result.expectedPageVersion, 4);
+  assert.equal(result.expectedTocVersion, 7);
 });
 
 for (const [name, mutate] of [
@@ -46,6 +50,8 @@ for (const [name, mutate] of [
   ['unknown element types', (value) => { value.pageElements[0].type = 'Unknown'; }],
   ['invalid category characters', (value) => { value.category = 'Bad/Category'; }],
   ['non-HTTPS video URLs', (value) => { value.pageElements[1].videoUrl = 'http://example.com/video.mp4'; }],
+  ['missing page version', (value) => { delete value.expectedPageVersion; }],
+  ['negative TOC version', (value) => { value.expectedTocVersion = -1; }],
 ]) {
   test(`rejects ${name}`, () => {
     const context = loadScript();

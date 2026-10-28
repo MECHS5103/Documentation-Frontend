@@ -9,12 +9,13 @@ function doGet(e) {
     var isTocRequest = e.parameter.toc === "true";
 
     if (!category || category === 'Landing Page') {
-      return ContentService.createTextOutput(JSON.stringify({ data: [] }))
+      return ContentService.createTextOutput(JSON.stringify({ data: [], version: 0 }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
     var targetCategoryClean = String(category).trim().toLowerCase();
     var responseArray = [];
+    var version = 0;
 
     if (isTocRequest) {
       var targetSpreadsheet = SpreadsheetApp.openById(TOC_SPREADSHEET_ID);
@@ -30,11 +31,11 @@ function doGet(e) {
       }
 
       if (!targetSheet) {
-        return ContentService.createTextOutput(JSON.stringify({
-          error: "TOC sheet matching '" + category + "' was not found."
-        })).setMimeType(ContentService.MimeType.JSON);
+        return ContentService.createTextOutput(JSON.stringify({ data: [], version: 0 }))
+          .setMimeType(ContentService.MimeType.JSON);
       }
 
+      version = getStoredVersion(targetSheet, 3);
       var data = targetSheet.getDataRange().getValues();
       for (var i = 0; i < data.length; i++) {
         var type = data[i][0];
@@ -71,11 +72,11 @@ function doGet(e) {
       }
 
       if (!targetSheet) {
-        return ContentService.createTextOutput(JSON.stringify({
-          error: "No matching page found for Category: " + category + ", Section: " + section + ", Lesson: " + lesson
-        })).setMimeType(ContentService.MimeType.JSON);
+        return ContentService.createTextOutput(JSON.stringify({ data: [], version: 0 }))
+          .setMimeType(ContentService.MimeType.JSON);
       }
 
+      version = getStoredVersion(targetSheet, 4);
       var data = targetSheet.getDataRange().getValues();
 
       for (var i = 1; i < data.length; i++) {
@@ -112,7 +113,10 @@ function doGet(e) {
       }
     }
 
-    return ContentService.createTextOutput(JSON.stringify({ data: responseArray }))
+    return ContentService.createTextOutput(JSON.stringify({
+      data: responseArray,
+      version: version
+    }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     console.error("Content read failed", err);
@@ -166,6 +170,12 @@ function verifyEditorToken(idToken) {
 
   var user = body.users[0];
   var claims = decodeFirebaseTokenPayload(idToken);
+  var currentClaims = {};
+  try {
+    currentClaims = JSON.parse(user.customAttributes || "{}");
+  } catch (claimError) {
+    throw new Error("Unauthorized");
+  }
   var provider = claims.firebase && claims.firebase.sign_in_provider;
 
   if (
@@ -176,6 +186,7 @@ function verifyEditorToken(idToken) {
     claims.aud !== projectId ||
     claims.iss !== "https://securetoken.google.com/" + projectId ||
     claims.editor !== true ||
+    currentClaims.editor !== true ||
     provider !== "google.com"
   ) {
     throw new Error("Unauthorized");
@@ -231,6 +242,19 @@ function requireString(value, field, maxLength, allowEmpty) {
   if (!allowEmpty && normalized === "") invalidPayload(field + " is required.");
   if (value.length > maxLength) invalidPayload(field + " is too long.");
   return normalized;
+}
+
+function requireVersion(value, field) {
+  if (
+    typeof value !== "number" ||
+    !isFinite(value) ||
+    Math.floor(value) !== value ||
+    value < 0 ||
+    value > 2147483647
+  ) {
+    invalidPayload(field + " must be a non-negative integer.");
+  }
+  return value;
 }
 
 function validateSavePayload(data) {
@@ -315,6 +339,8 @@ function validateSavePayload(data) {
     category: category,
     section: section,
     lesson: lesson,
+    expectedPageVersion: requireVersion(data.expectedPageVersion, "expectedPageVersion"),
+    expectedTocVersion: requireVersion(data.expectedTocVersion, "expectedTocVersion"),
     tocData: tocData,
     pageElements: pageElements
   };
@@ -334,10 +360,10 @@ function writeRawValues(spreadsheetId, sheetName, values) {
   );
 }
 
-function buildPageRows(category, section, lesson, pageElements) {
+function buildPageRows(category, section, lesson, pageElements, version) {
   var rows = [
-    [category, section, lesson],
-    ["Title", "", ""]
+    [category, section, lesson, version],
+    ["Title", "", "", ""]
   ];
 
   pageElements.forEach(function (item) {
@@ -347,25 +373,247 @@ function buildPageRows(category, section, lesson, pageElements) {
       rows.push([
         item.type,
         JSON.stringify({ title: item.title || "", caption: item.caption || "" }),
-        item.videoUrl || ""
+        item.videoUrl || "",
+        ""
       ]);
     } else {
-      rows.push([item.type, item.text || "", item.language || ""]);
+      rows.push([item.type, item.text || "", item.language || "", ""]);
     }
   });
   return rows;
 }
 
-function buildTocRows(tocData) {
-  return tocData.map(function (item) {
+function buildTocRows(tocData, version) {
+  var rows = tocData.map(function (item) {
     return [item.type, item.text];
+  });
+  if (rows.length === 0) rows.push(["", ""]);
+  rows[0].push(version);
+  return rows;
+}
+
+function readTocData(sheet) {
+  if (!sheet || sheet.getLastRow() < 1) return [];
+  return sheet.getDataRange().getValues().filter(function (row) {
+    return row[0] === "SubjectText" || row[0] === "LessonText";
+  }).map(function (row) {
+    return { type: row[0], text: String(row[1] || "") };
   });
 }
 
+function tocDataMatches(left, right) {
+  if (left.length !== right.length) return false;
+  for (var i = 0; i < left.length; i++) {
+    if (left[i].type !== right[i].type || left[i].text !== right[i].text) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function getStoredVersion(sheet, column) {
+  if (!sheet || sheet.getLastRow() < 1) return 0;
+  var value = sheet.getRange(1, column).getValue();
+  return (
+    typeof value === "number" &&
+    isFinite(value) &&
+    Math.floor(value) === value &&
+    value >= 0
+  ) ? value : 0;
+}
+
+function findPageSheet(spreadsheet, category, section, lesson) {
+  var sheets = spreadsheet.getSheets();
+  var targetCategory = String(category).trim().toLowerCase();
+  var targetSection = String(section).trim().toLowerCase();
+  var targetLesson = String(lesson).trim().toLowerCase();
+
+  for (var i = 0; i < sheets.length; i++) {
+    var sheet = sheets[i];
+    if (sheet.getLastRow() < 1) continue;
+    var header = sheet.getRange(1, 1, 1, 3).getValues()[0];
+    if (
+      String(header[0]).trim().toLowerCase() === targetCategory &&
+      String(header[1]).trim().toLowerCase() === targetSection &&
+      String(header[2]).trim().toLowerCase() === targetLesson
+    ) {
+      return sheet;
+    }
+  }
+  return null;
+}
+
+function snapshotSheet(sheet) {
+  if (!sheet || sheet.getLastRow() < 1 || sheet.getLastColumn() < 1) {
+    return { values: [], rows: 0, columns: 0 };
+  }
+  var rows = sheet.getLastRow();
+  var columns = sheet.getLastColumn();
+  return {
+    values: sheet.getRange(1, 1, rows, columns).getValues(),
+    rows: rows,
+    columns: columns
+  };
+}
+
+function clearStaleCells(sheet, oldRows, oldColumns, newRows, newColumns) {
+  if (oldRows > newRows && oldColumns > 0) {
+    sheet.getRange(newRows + 1, 1, oldRows - newRows, oldColumns).clearContent();
+  }
+  if (oldColumns > newColumns && newRows > 0) {
+    sheet.getRange(1, newColumns + 1, newRows, oldColumns - newColumns).clearContent();
+  }
+}
+
+function restoreSheetSnapshot(spreadsheetId, sheet, snapshot) {
+  var currentRows = sheet.getLastRow();
+  var currentColumns = sheet.getLastColumn();
+  if (snapshot.rows > 0) {
+    writeRawValues(spreadsheetId, sheet.getName(), snapshot.values);
+  }
+  clearStaleCells(
+    sheet,
+    currentRows,
+    currentColumns,
+    snapshot.rows,
+    snapshot.columns
+  );
+  if (snapshot.rows === 0 && currentRows > 0 && currentColumns > 0) {
+    sheet.getRange(1, 1, currentRows, currentColumns).clearContent();
+  }
+}
+
+function createCodedError(code, message) {
+  var error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function saveVersionedContent(payload, principal, spreadsheetIds) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    throw createCodedError("SAVE_BUSY", "Another save is currently in progress. Try again shortly.");
+  }
+
+  var pagesSs;
+  var tocSs;
+  var pageSheet;
+  var tocSheet;
+  var pageCreated = false;
+  var tocCreated = false;
+  var pageSnapshot;
+  var tocSnapshot;
+
+  try {
+    pagesSs = SpreadsheetApp.openById(spreadsheetIds.pages);
+    tocSs = SpreadsheetApp.openById(spreadsheetIds.toc);
+    pageSheet = findPageSheet(
+      pagesSs,
+      payload.category,
+      payload.section,
+      payload.lesson
+    );
+    tocSheet = tocSs.getSheetByName(payload.category);
+
+    var currentPageVersion = getStoredVersion(pageSheet, 4);
+    var currentTocVersion = getStoredVersion(tocSheet, 3);
+    var tocChanged = !tocDataMatches(payload.tocData, readTocData(tocSheet));
+    if (
+      currentPageVersion !== payload.expectedPageVersion ||
+      (tocChanged && currentTocVersion !== payload.expectedTocVersion)
+    ) {
+      throw createCodedError(
+        "VERSION_CONFLICT",
+        "This content changed after it was loaded. Reload before saving."
+      );
+    }
+
+    if (!pageSheet) {
+      pageSheet = pagesSs.insertSheet(
+        "page_" + Utilities.getUuid().replace(/-/g, "").substring(0, 24)
+      );
+      pageCreated = true;
+    }
+    if (tocChanged && !tocSheet) {
+      tocSheet = tocSs.insertSheet(payload.category);
+      tocCreated = true;
+    }
+
+    pageSnapshot = snapshotSheet(pageSheet);
+    tocSnapshot = tocChanged ? snapshotSheet(tocSheet) : null;
+
+    var pageElements = applyAuthenticatedContributor(
+      payload.pageElements,
+      readExistingContributors(pageSheet),
+      principal
+    );
+    var pageVersion = currentPageVersion + 1;
+    var tocVersion = tocChanged ? currentTocVersion + 1 : currentTocVersion;
+    var pageRows = buildPageRows(
+      payload.category,
+      payload.section,
+      payload.lesson,
+      pageElements,
+      pageVersion
+    );
+    var tocRows = tocChanged ? buildTocRows(payload.tocData, tocVersion) : null;
+
+    try {
+      writeRawValues(spreadsheetIds.pages, pageSheet.getName(), pageRows);
+      if (tocChanged) {
+        writeRawValues(spreadsheetIds.toc, tocSheet.getName(), tocRows);
+      }
+      clearStaleCells(
+        pageSheet,
+        pageSnapshot.rows,
+        pageSnapshot.columns,
+        pageRows.length,
+        4
+      );
+      if (tocChanged) {
+        clearStaleCells(
+          tocSheet,
+          tocSnapshot.rows,
+          tocSnapshot.columns,
+          tocRows.length,
+          3
+        );
+      }
+    } catch (writeError) {
+      try {
+        if (pageCreated) {
+          pagesSs.deleteSheet(pageSheet);
+        } else {
+          restoreSheetSnapshot(spreadsheetIds.pages, pageSheet, pageSnapshot);
+        }
+        if (tocChanged) {
+          if (tocCreated) {
+            tocSs.deleteSheet(tocSheet);
+          } else {
+            restoreSheetSnapshot(spreadsheetIds.toc, tocSheet, tocSnapshot);
+          }
+        }
+      } catch (rollbackError) {
+        console.error("Content rollback failed", rollbackError);
+      }
+      throw writeError;
+    }
+
+    return { pageVersion: pageVersion, tocVersion: tocVersion };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function doPost(e) {
-  var createResponse = function (status, payload, code) {
+  var createResponse = function (status, payload, code, metadata) {
     var output = { status: status, message: payload };
     if (code) output.code = code;
+    if (metadata) {
+      Object.keys(metadata).forEach(function (key) {
+        output[key] = metadata[key];
+      });
+    }
     return ContentService.createTextOutput(JSON.stringify(output))
       .setMimeType(ContentService.MimeType.JSON);
   };
@@ -408,65 +656,28 @@ function doPost(e) {
       throw validationError;
     }
 
-    var category = payload.category;
-    var section = payload.section;
-    var lesson = payload.lesson;
-    var tocData = payload.tocData;
-    var pageElements = payload.pageElements;
-
     var TOC_SPREADSHEET_ID = "1NwXxIsuYAzM44GuAqOUeq6vMNNY1HXX-MynpLd7smVQ";
     var PAGES_SPREADSHEET_ID = "159ATSwxFAs1NEoyuTmnSrpDPMCHZUaQK8SMT1Ayf1X4";
 
-    if (category && section && lesson) {
-      var pagesSs = SpreadsheetApp.openById(PAGES_SPREADSHEET_ID);
-      var sheets = pagesSs.getSheets();
-      var targetSheet = null;
-
-      var targetCategoryClean = String(category).trim().toLowerCase();
-      var targetSectionClean = String(section).trim().toLowerCase();
-      var targetLessonClean = String(lesson).trim().toLowerCase();
-
-      for (var s = 0; s < sheets.length; s++) {
-        var tempSheet = sheets[s];
-        if (tempSheet.getLastRow() >= 1) {
-          var headerRow = tempSheet.getRange(1, 1, 1, 3).getValues()[0];
-          if (
-            String(headerRow[0]).trim().toLowerCase() === targetCategoryClean &&
-            String(headerRow[1]).trim().toLowerCase() === targetSectionClean &&
-            String(headerRow[2]).trim().toLowerCase() === targetLessonClean
-          ) {
-            targetSheet = tempSheet;
-            break;
-          }
-        }
+    var versions;
+    try {
+      versions = saveVersionedContent(payload, principal, {
+        pages: PAGES_SPREADSHEET_ID,
+        toc: TOC_SPREADSHEET_ID
+      });
+    } catch (saveError) {
+      if (saveError.code === "VERSION_CONFLICT" || saveError.code === "SAVE_BUSY") {
+        return createResponse("error", saveError.message, saveError.code);
       }
-
-      if (!targetSheet) {
-        targetSheet = pagesSs.insertSheet(category.substring(0, 3) + "_" + lesson.substring(0, 10) + "_" + Date.now());
-      }
-
-      pageElements = applyAuthenticatedContributor(
-        pageElements,
-        readExistingContributors(targetSheet),
-        principal
-      );
-
-      targetSheet.clear();
-      writeRawValues(
-        PAGES_SPREADSHEET_ID,
-        targetSheet.getName(),
-        buildPageRows(category, section, lesson, pageElements)
-      );
+      throw saveError;
     }
 
-    if (category && tocData.length > 0) {
-      var tocSs = SpreadsheetApp.openById(TOC_SPREADSHEET_ID);
-      var tocSheet = tocSs.getSheetByName(category) || tocSs.insertSheet(category);
-      tocSheet.clear();
-      writeRawValues(TOC_SPREADSHEET_ID, tocSheet.getName(), buildTocRows(tocData));
-    }
-
-    return createResponse("success", "Data synchronized successfully!", "OK");
+    return createResponse(
+      "success",
+      "Data synchronized successfully!",
+      "OK",
+      versions
+    );
   } catch (error) {
     console.error("Unhandled request failure", error);
     return createResponse("error", "The request could not be completed.", "INTERNAL_ERROR");

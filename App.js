@@ -58,7 +58,17 @@ export default function App() {
   const isMobile = width < 768;
 
   const [tocData, setTocData] = useState([]);
+  const [tocVersion, setTocVersion] = useState(0);
+  const [tocLoadState, setTocLoadState] = useState({
+    category: null,
+    status: 'idle',
+  });
   const [pageElements, setPageElements] = useState([]);
+  const [pageVersion, setPageVersion] = useState(0);
+  const [documentLoadState, setDocumentLoadState] = useState({
+    key: null,
+    status: 'idle',
+  });
   const [loading, setLoading] = useState(true);
   const [hasSaved, setHasSaved] = useState(true);
   const [requestPageChange, setRequestPageChange] = useState(null);
@@ -153,10 +163,30 @@ export default function App() {
     return '';
   });
 
+  const currentDocumentKey =
+    navPanel && activeSection && activeLesson
+      ? JSON.stringify([navPanel, activeSection, activeLesson])
+      : null;
+  const currentDocumentReady =
+    currentDocumentKey !== null &&
+    documentLoadState.key === currentDocumentKey &&
+    documentLoadState.status === 'ready' &&
+    tocLoadState.category === navPanel &&
+    tocLoadState.status === 'ready';
+  const currentDocumentFailed =
+    currentDocumentKey !== null &&
+    documentLoadState.key === currentDocumentKey &&
+    documentLoadState.status === 'error';
+
   useFetchData({
     navPanel,
     setTocData,
+    setTocVersion,
+    setTocLoadState,
     setPageElements,
+    setPageVersion,
+    documentKey: currentDocumentKey,
+    setDocumentLoadState,
     activeSection,
     setActiveSection,
     activeLesson,
@@ -230,6 +260,10 @@ export default function App() {
   };
 
   const handleSave = async (tocOverride = null) => {
+    if (!currentDocumentReady) {
+      alert('Wait for the current page to finish loading before saving.');
+      return;
+    }
     setLoading(true);
 
     const dataToSave =
@@ -278,6 +312,8 @@ export default function App() {
             category: navPanel,
             section: activeSection,
             lesson: activeLesson,
+            expectedPageVersion: pageVersion,
+            expectedTocVersion: tocVersion,
             tocData: dataToSave,
             pageElements: updatedPageElements,
           }),
@@ -288,12 +324,27 @@ export default function App() {
       if (result.status === 'success') {
         alert('Data saved successfully to your Pi!');
         setHasSaved(true);
+        setPageVersion(result.pageVersion);
+        setTocVersion(result.tocVersion);
 
         const cacheKey = `${navPanel}-${activeSection}-${activeLesson}`;
-        dataCache.pages[cacheKey] = updatedPageElements;
+        dataCache.pages[cacheKey] = {
+          pageElements: updatedPageElements,
+          version: result.pageVersion,
+          timestamp: Date.now(),
+        };
         if (dataCache.toc[navPanel]) {
           dataCache.toc[navPanel].tocData = dataToSave;
+          dataCache.toc[navPanel].version = result.tocVersion;
+          dataCache.toc[navPanel].timestamp = Date.now();
         }
+      } else if (result.code === 'VERSION_CONFLICT') {
+        delete dataCache.pages[`${navPanel}-${activeSection}-${activeLesson}`];
+        delete dataCache.toc[navPanel];
+        setHasSaved(false);
+        alert(
+          'Another editor saved changes first. Reload this page before trying again; your unsaved edits were not written.'
+        );
       } else {
         alert('Failed to save: ' + result.message);
       }
@@ -313,6 +364,20 @@ export default function App() {
     } else {
       setRequestPageChange({ section, lesson });
     }
+  };
+
+  const handleNavPanelChange = (nextPanel) => {
+    if (nextPanel !== navPanel) {
+      setActiveSection('');
+      setActiveLesson('');
+      setTocData([]);
+      setTocVersion(0);
+      setTocLoadState({ category: nextPanel, status: 'loading' });
+      setPageElements([]);
+      setPageVersion(0);
+      setDocumentLoadState({ key: null, status: 'idle' });
+    }
+    setNavPanel(nextPanel);
   };
 
   const handleAddElement = (index, type) => {
@@ -396,8 +461,9 @@ export default function App() {
       {/* HEADER SECTION */}
       <HeaderNav
         navPanel={navPanel}
-        setNavPanel={setNavPanel}
+        setNavPanel={handleNavPanelChange}
         onSave={() => handleSave()}
+        saveDisabled={!currentDocumentReady}
         loggedIn={loggedIn}
         setLoggedIn={(val) => {
           if (!val) {
@@ -442,8 +508,19 @@ export default function App() {
 
         {/* 2. DOCUMENTATION CONTENT CONTAINER */}
         {navPanel === 'Landing Page' ? (
-          <LandingPage setNavPanel={setNavPanel} />
-        ) : loading ? (
+          <LandingPage setNavPanel={handleNavPanelChange} />
+        ) : loading || !currentDocumentReady ? (
+          currentDocumentFailed ? (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: 24,
+              }}>
+              <Text>Unable to load this page. Reload and try again.</Text>
+            </View>
+          ) : (
           <View
             style={{
               flex: 1,
@@ -453,6 +530,7 @@ export default function App() {
             }}>
             <ActivityIndicator size="large" color="#207ADB" />
           </View>
+          )
         ) : (
           <ScrollView
             style={[

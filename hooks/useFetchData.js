@@ -1,6 +1,6 @@
 // hooks/useFetchData.js
 import { useEffect } from 'react';
-import { API_URL, fetchLessonData } from '../services/api';
+import { API_URL, fetchLessonDocument } from '../services/api';
 import dataCache from '../services/cache';
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
@@ -8,7 +8,12 @@ const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const useFetchData = ({
   navPanel,
   setTocData,
+  setTocVersion,
+  setTocLoadState,
   setPageElements,
+  setPageVersion,
+  documentKey,
+  setDocumentLoadState,
   activeSection,
   setActiveSection,
   activeLesson,
@@ -19,7 +24,11 @@ const useFetchData = ({
   useEffect(() => {
     if (!navPanel || navPanel === 'Landing Page' || navPanel === 'Test') {
       setTocData([]);
+      setTocVersion(0);
+      setTocLoadState({ category: null, status: 'idle' });
       setPageElements([]);
+      setPageVersion(0);
+      setDocumentLoadState({ key: null, status: 'idle' });
       setLoading(false);
       return;
     }
@@ -38,6 +47,8 @@ const useFetchData = ({
     if (cachedEntry) {
       const cachedData = cachedEntry.tocData || [];
       setTocData(cachedData);
+      setTocVersion(Number.isInteger(cachedEntry.version) ? cachedEntry.version : 0);
+      setTocLoadState({ category: navPanel, status: 'ready' });
 
       const firstSubject = cachedData.find(
         (item) => item.type && item.type.toLowerCase() === 'subjecttext'
@@ -51,6 +62,9 @@ const useFetchData = ({
 
       setLoading(false);
     } else {
+      setTocData([]);
+      setTocVersion(0);
+      setTocLoadState({ category: navPanel, status: 'loading' });
       setLoading(true);
     }
 
@@ -66,16 +80,22 @@ const useFetchData = ({
 
           const rawText = await response.text();
 
+          if (!response.ok) {
+            throw new Error('The table of contents request failed.');
+          }
           if (!rawText || rawText.trim() === '') {
-            if (isMounted && !cachedEntry) setTocData([]);
-            return;
+            throw new Error('The table of contents response was empty.');
           }
 
           let result = {};
           try {
             result = JSON.parse(rawText);
           } catch (e) {
-            console.warn('TOC response failed to parse as JSON');
+            throw new Error('The table of contents response was invalid.');
+          }
+
+          if (result.error) {
+            throw new Error(result.error);
           }
 
           if (!isMounted) return;
@@ -88,10 +108,13 @@ const useFetchData = ({
 
           dataCache.toc[navPanel] = {
             tocData: tocList,
+            version: Number.isInteger(result.version) ? result.version : 0,
             timestamp: Date.now(),
           };
 
           setTocData(tocList);
+          setTocVersion(Number.isInteger(result.version) ? result.version : 0);
+          setTocLoadState({ category: navPanel, status: 'ready' });
 
           const firstSubject = tocList.find(
             (item) => item.type && item.type.toLowerCase() === 'subjecttext'
@@ -104,7 +127,11 @@ const useFetchData = ({
           if (firstLesson) setActiveLesson((prev) => prev || firstLesson.text || '');
         } catch (error) {
           console.error('Error fetching TOC data:', error);
-          if (isMounted && !cachedEntry) setTocData([]);
+          if (isMounted && !cachedEntry) {
+            setTocData([]);
+            setTocVersion(0);
+            setTocLoadState({ category: navPanel, status: 'error' });
+          }
         } finally {
           if (isMounted) setLoading(false);
         }
@@ -122,21 +149,36 @@ const useFetchData = ({
     setActiveSection,
     setLoading,
     setPageElements,
+    setPageVersion,
+    setDocumentLoadState,
     setTocData,
+    setTocLoadState,
+    setTocVersion,
   ]);
 
   // 2. Fetch page elements whenever navPanel, activeSection, or activeLesson updates
   useEffect(() => {
-    if (!navPanel || !activeSection || !activeLesson) {
+    if (!documentKey || !navPanel || !activeSection || !activeLesson) {
+      setPageElements([]);
+      setPageVersion(0);
+      setDocumentLoadState({ key: null, status: 'idle' });
       return;
     }
 
     let isMounted = true;
+    setPageElements([]);
+    setPageVersion(0);
+    setDocumentLoadState({ key: documentKey, status: 'loading' });
 
     const loadPageData = async () => {
       try {
         setLoading(true);
-        const data = await fetchLessonData(navPanel, activeSection, activeLesson);
+        const document = await fetchLessonDocument(
+          navPanel,
+          activeSection,
+          activeLesson
+        );
+        const data = document.data;
 
         if (isMounted && Array.isArray(data)) {
           const parsedElements = data.map((item) => {
@@ -151,9 +193,16 @@ const useFetchData = ({
           });
 
           setPageElements(parsedElements);
+          setPageVersion(document.version);
+          setDocumentLoadState({ key: documentKey, status: 'ready' });
         }
       } catch (err) {
         console.error('Error loading page elements:', err);
+        if (isMounted) {
+          setPageElements([]);
+          setPageVersion(0);
+          setDocumentLoadState({ key: documentKey, status: 'error' });
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -164,7 +213,16 @@ const useFetchData = ({
     return () => {
       isMounted = false;
     };
-  }, [navPanel, activeSection, activeLesson, setPageElements, setLoading]);
+  }, [
+    navPanel,
+    activeSection,
+    activeLesson,
+    documentKey,
+    setPageElements,
+    setPageVersion,
+    setDocumentLoadState,
+    setLoading,
+  ]);
 };
 
 export default useFetchData;
