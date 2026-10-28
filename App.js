@@ -12,6 +12,13 @@ import { useFonts, Chewy_400Regular } from '@expo-google-fonts/chewy';
 
 import useFetchData from './hooks/useFetchData';
 import dataCache from './services/cache';
+import { postApi } from './services/api';
+import {
+  getEditorIdToken,
+  observeEditorAuthState,
+  signInEditor,
+  signOutEditor,
+} from './services/auth';
 import styles from './styles';
 import VideoPill from './components/pills/VideoPill';
 import ContributorsPill from './components/pills/ContributorsPill';
@@ -35,6 +42,14 @@ import {
   VocabularyPill,
 } from './components/pills/PillVariants';
 
+const safeDecodeURIComponent = (value) => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
 export default function App() {
   let [fontsLoaded] = useFonts({
     Chewy: Chewy_400Regular,
@@ -44,36 +59,45 @@ export default function App() {
   const isMobile = width < 768;
 
   const [tocData, setTocData] = useState([]);
+  const [tocVersion, setTocVersion] = useState(0);
+  const [tocLoadState, setTocLoadState] = useState({
+    category: null,
+    status: 'idle',
+  });
   const [pageElements, setPageElements] = useState([]);
+  const [pageVersion, setPageVersion] = useState(0);
+  const [documentLoadState, setDocumentLoadState] = useState({
+    key: null,
+    status: 'idle',
+  });
   const [loading, setLoading] = useState(true);
   const [hasSaved, setHasSaved] = useState(true);
   const [requestPageChange, setRequestPageChange] = useState(null);
 
-  const [loggedIn, setLoggedIn] = useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('is_logged_in') === 'true';
-    }
-    return false;
-  });
-
-  const [username, setUsername] = useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('user_username') || '';
-    }
-    return '';
-  });
-
-  const [password, setPassword] = useState('');
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [username, setUsername] = useState('');
   const [loginVisible, setLoginVisible] = useState(false);
-
-  const [lastName, setLastName] = useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('user_last_name') || '';
-    }
-    return '';
-  });
+  const [lastName, setLastName] = useState('');
 
   const [pageCredits, setPageCredits] = useState([]);
+
+  useEffect(() => {
+    return observeEditorAuthState((user) => {
+      if (!user) {
+        setLoggedIn(false);
+        setUsername('');
+        setLastName('');
+        return;
+      }
+
+      const displayName = (user.displayName || user.email || '').trim();
+      const nameParts = displayName.split(/\s+/).filter(Boolean);
+
+      setLoggedIn(true);
+      setUsername(nameParts[0] || displayName);
+      setLastName(nameParts.slice(1).join(' '));
+    });
+  }, []);
 
   const parseCurrentUrl = () => {
     if (typeof window === 'undefined')
@@ -84,9 +108,9 @@ export default function App() {
     if (p) {
       const segments = p.split('/').filter(Boolean);
       return {
-        panel: segments[0] ? decodeURIComponent(segments[0]) : 'Landing Page',
-        section: segments[1] ? decodeURIComponent(segments[1]) : '',
-        lesson: segments[2] ? decodeURIComponent(segments[2]) : '',
+        panel: segments[0] ? safeDecodeURIComponent(segments[0]) : 'Landing Page',
+        section: segments[1] ? safeDecodeURIComponent(segments[1]) : '',
+        lesson: segments[2] ? safeDecodeURIComponent(segments[2]) : '',
         isExplicit: true,
       };
     }
@@ -101,9 +125,9 @@ export default function App() {
     }
 
     return {
-      panel: segments[0] ? decodeURIComponent(segments[0]) : 'Landing Page',
-      section: segments[1] ? decodeURIComponent(segments[1]) : '',
-      lesson: segments[2] ? decodeURIComponent(segments[2]) : '',
+      panel: segments[0] ? safeDecodeURIComponent(segments[0]) : 'Landing Page',
+      section: segments[1] ? safeDecodeURIComponent(segments[1]) : '',
+      lesson: segments[2] ? safeDecodeURIComponent(segments[2]) : '',
       isExplicit: true,
     };
   };
@@ -140,10 +164,30 @@ export default function App() {
     return '';
   });
 
+  const currentDocumentKey =
+    navPanel && activeSection && activeLesson
+      ? JSON.stringify([navPanel, activeSection, activeLesson])
+      : null;
+  const currentDocumentReady =
+    currentDocumentKey !== null &&
+    documentLoadState.key === currentDocumentKey &&
+    documentLoadState.status === 'ready' &&
+    tocLoadState.category === navPanel &&
+    tocLoadState.status === 'ready';
+  const currentDocumentFailed =
+    currentDocumentKey !== null &&
+    documentLoadState.key === currentDocumentKey &&
+    documentLoadState.status === 'error';
+
   useFetchData({
     navPanel,
     setTocData,
+    setTocVersion,
+    setTocLoadState,
     setPageElements,
+    setPageVersion,
+    documentKey: currentDocumentKey,
+    setDocumentLoadState,
     activeSection,
     setActiveSection,
     activeLesson,
@@ -185,19 +229,8 @@ export default function App() {
       localStorage.setItem('last_activeSection', activeSection);
       localStorage.setItem('last_activeLesson', activeLesson);
 
-      if (username) {
-        localStorage.setItem('user_username', username);
-      } else {
-        localStorage.removeItem('user_username');
-      }
-
-      if (lastName) {
-        localStorage.setItem('user_last_name', lastName);
-      } else {
-        localStorage.removeItem('user_last_name');
-      }
     }
-  }, [navPanel, activeSection, activeLesson, username, lastName]);
+  }, [navPanel, activeSection, activeLesson]);
 
   useEffect(() => {
     const creditsElement = pageElements.find((item) => item.type === 'Credits');
@@ -209,79 +242,29 @@ export default function App() {
     }
   }, [pageElements]);
 
-  const getUserLastName = async () => {
+  const handleLogin = async () => {
     try {
-      const response = await fetch(
-        'https://script.google.com/macros/s/AKfycbz3b2ncvEKcdHMvsdwukIR9EATgIPZG0pk4ry-NpyIHFYWxZAPqJY1Va9b6vuVuoSf5jw/exec',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8',
-          },
-          body: JSON.stringify({
-            action: 'doGetUserLast',
-            user: username,
-            pass: password,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (result.status === 'success') {
-        setLastName(result.message);
-        if (typeof window !== 'undefined' && window.localStorage) {
-          setLastName(result.message);
-          localStorage.setItem('user_last_name', result.message);
-          alert('Last name updated to: ' + result.message);
-        }
-      } else {
-        alert('There was an error fetching the users last name!');
-      }
+      await signInEditor();
+      setLoginVisible(false);
     } catch (error) {
-      alert(
-        'There was an error fetching the users last name! The error was: ' + error
-      );
+      console.error('Sign-in error:', error);
+      alert(error.message || 'Unable to sign in.');
     }
   };
 
-  const handleLogin = async () => {
-    try {
-      const response = await fetch(
-        'https://script.google.com/macros/s/AKfycbz3b2ncvEKcdHMvsdwukIR9EATgIPZG0pk4ry-NpyIHFYWxZAPqJY1Va9b6vuVuoSf5jw/exec',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8',
-          },
-          body: JSON.stringify({
-            action: 'doTestCredentials',
-            user: username,
-            pass: password,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (result.status === 'success') {
-        setLoggedIn(true);
-        setLoginVisible(false);
-        if (typeof window !== 'undefined' && window.localStorage) {
-          localStorage.setItem('is_logged_in', 'true');
-          localStorage.setItem('user_username', username);
-        }
-
-        getUserLastName();
-      } else {
-        alert('Incorrect username or password');
-      }
-    } catch (error) {
-      console.error('Network communication error:', error);
-    }
+  const handleLogout = async () => {
+    await signOutEditor();
+    setLoggedIn(false);
+    setLoginVisible(false);
+    setUsername('');
+    setLastName('');
   };
 
   const handleSave = async (tocOverride = null) => {
+    if (!currentDocumentReady) {
+      alert('Wait for the current page to finish loading before saving.');
+      return;
+    }
     setLoading(true);
 
     const dataToSave =
@@ -289,7 +272,7 @@ export default function App() {
 
     const userCut = username.split(' ');
 
-    const userFullName = `${userCut[0]} ${lastName}`;
+    const userFullName = [userCut[0], lastName].filter(Boolean).join(' ');
 
     const updatedPageElements = pageElements.map((item) => {
       if (item.type === 'Credits') {
@@ -316,34 +299,42 @@ export default function App() {
     });
 
     try {
-      // Pointing to your Raspberry Pi Cloudflare Tunnel API endpoint
-      const response = await fetch(
-        'https://api.team5103.com/api/save',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            category: navPanel,
-            section: activeSection,
-            lesson: activeLesson,
-            tocData: dataToSave,
-            pageElements: updatedPageElements,
-          }),
-        }
-      );
-
-      const result = await response.json();
+      const idToken = await getEditorIdToken();
+      const result = await postApi({
+        action: 'saveContent',
+        idToken,
+        category: navPanel,
+        section: activeSection,
+        lesson: activeLesson,
+        expectedPageVersion: pageVersion,
+        expectedTocVersion: tocVersion,
+        tocData: dataToSave,
+        pageElements: updatedPageElements,
+      });
       if (result.status === 'success') {
-        alert('Data saved successfully to your Pi!');
+        alert('Data saved successfully!');
         setHasSaved(true);
+        setPageVersion(result.pageVersion);
+        setTocVersion(result.tocVersion);
 
         const cacheKey = `${navPanel}-${activeSection}-${activeLesson}`;
-        dataCache.pages[cacheKey] = updatedPageElements;
+        dataCache.pages[cacheKey] = {
+          pageElements: updatedPageElements,
+          version: result.pageVersion,
+          timestamp: Date.now(),
+        };
         if (dataCache.toc[navPanel]) {
           dataCache.toc[navPanel].tocData = dataToSave;
+          dataCache.toc[navPanel].version = result.tocVersion;
+          dataCache.toc[navPanel].timestamp = Date.now();
         }
+      } else if (result.code === 'VERSION_CONFLICT') {
+        delete dataCache.pages[`${navPanel}-${activeSection}-${activeLesson}`];
+        delete dataCache.toc[navPanel];
+        setHasSaved(false);
+        alert(
+          'Another editor saved changes first. Reload this page before trying again; your unsaved edits were not written.'
+        );
       } else {
         alert('Failed to save: ' + result.message);
       }
@@ -363,6 +354,20 @@ export default function App() {
     } else {
       setRequestPageChange({ section, lesson });
     }
+  };
+
+  const handleNavPanelChange = (nextPanel) => {
+    if (nextPanel !== navPanel) {
+      setActiveSection('');
+      setActiveLesson('');
+      setTocData([]);
+      setTocVersion(0);
+      setTocLoadState({ category: nextPanel, status: 'loading' });
+      setPageElements([]);
+      setPageVersion(0);
+      setDocumentLoadState({ key: null, status: 'idle' });
+    }
+    setNavPanel(nextPanel);
   };
 
   const handleAddElement = (index, type) => {
@@ -446,28 +451,17 @@ export default function App() {
       {/* HEADER SECTION */}
       <HeaderNav
         navPanel={navPanel}
-        setNavPanel={setNavPanel}
+        setNavPanel={handleNavPanelChange}
         onSave={() => handleSave()}
+        saveDisabled={!currentDocumentReady}
         loggedIn={loggedIn}
         setLoggedIn={(val) => {
-          setLoggedIn(val);
-          if (typeof window !== 'undefined' && window.localStorage) {
-            if (val) {
-              localStorage.setItem('is_logged_in', 'true');
-            } else {
-              localStorage.removeItem('is_logged_in');
-              localStorage.removeItem('user_username');
-              localStorage.removeItem('user_last_name');
-              setUsername('');
-              setLastName('');
-            }
+          if (!val) {
+            handleLogout();
           }
         }}
         onLogin={handleLogin}
         username={username}
-        setUsername={setUsername}
-        password={password}
-        setPassword={setPassword}
         loginVisible={loginVisible}
         setLoginVisible={setLoginVisible}
         lastName={lastName}
@@ -504,8 +498,19 @@ export default function App() {
 
         {/* 2. DOCUMENTATION CONTENT CONTAINER */}
         {navPanel === 'Landing Page' ? (
-          <LandingPage setNavPanel={setNavPanel} />
-        ) : loading ? (
+          <LandingPage setNavPanel={handleNavPanelChange} />
+        ) : loading || !currentDocumentReady ? (
+          currentDocumentFailed ? (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: 24,
+              }}>
+              <Text>Unable to load this page. Reload and try again.</Text>
+            </View>
+          ) : (
           <View
             style={{
               flex: 1,
@@ -515,6 +520,7 @@ export default function App() {
             }}>
             <ActivityIndicator size="large" color="#207ADB" />
           </View>
+          )
         ) : (
           <ScrollView
             style={[

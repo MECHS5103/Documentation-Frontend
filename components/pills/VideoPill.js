@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   StyleSheet,
   useWindowDimensions,
 } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import * as DocumentPicker from 'expo-document-picker';
 import { uploadVideoToFirebase } from '../../services/firebase';
 
@@ -27,6 +27,17 @@ export const VideoPill = ({
 
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const player = useVideoPlayer(null, (createdPlayer) => {
+    createdPlayer.loop = false;
+    createdPlayer.muted = false;
+    createdPlayer.volume = 1;
+  });
+
+  useEffect(() => {
+    player.replaceAsync(videoUrl || null).catch((error) => {
+      console.error('Video load error:', error);
+    });
+  }, [player, videoUrl]);
 
   const handlePickAndUploadVideo = async () => {
     try {
@@ -44,8 +55,7 @@ export const VideoPill = ({
       setProgress(0);
 
       const downloadURL = await uploadVideoToFirebase(
-        file.uri,
-        file.name,
+        file,
         (percent) => setProgress(percent)
       );
 
@@ -58,7 +68,7 @@ export const VideoPill = ({
       }
     } catch (err) {
       console.error('Video Upload Error:', err);
-      alert('Upload Error', err.message || 'Failed to upload video.');
+      alert(err.message || 'Failed to upload video.');
     } finally {
       setUploading(false);
     }
@@ -87,20 +97,11 @@ export const VideoPill = ({
       {/* Static 16:9 Pill Container */}
       <View style={styles.videoWrapper}>
         {videoUrl ? (
-          <Video
-            source={{ uri: videoUrl }}
-            rate={1.0}
-            volume={1.0}
-            isMuted={false}
-            resizeMode={ResizeMode.CONTAIN}
-            shouldPlay={false}
-            useNativeControls
+          <VideoView
+            player={player}
+            contentFit="contain"
+            nativeControls
             style={styles.videoPlayer}
-            videoStyle={{
-              objectFit: 'contain',
-              width: '100%',
-              height: '100%',
-            }}
           />
         ) : (
           <View style={styles.adminControls}>

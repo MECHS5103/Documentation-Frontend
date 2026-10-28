@@ -8,13 +8,11 @@ export const HeaderNav = ({
   navPanel,
   setNavPanel,
   onSave,
+  saveDisabled = false,
   loggedIn,
   setLoggedIn,
   onLogin,
   username,
-  setUsername,
-  password,
-  setPassword,
   loginVisible,
   setLoginVisible,
   lastName,
@@ -32,9 +30,6 @@ export const HeaderNav = ({
         setLoggedIn={setLoggedIn}
         onLogin={onLogin}
         username={username}
-        setUsername={setUsername}
-        password={password}
-        setPassword={setPassword}
         loginVisible={loginVisible}
         setLoginVisible={setLoginVisible}
         lastName={lastName}
@@ -47,7 +42,13 @@ export const HeaderNav = ({
         {navPanel !== 'Landing Page' && loggedIn && (
           <View style={localStyles.actionButtonsContainer}>
             <View style={localStyles.buttonWrapper}>
-              <Pressable onPress={onSave} style={localStyles.actionButton}>
+              <Pressable
+                disabled={saveDisabled}
+                onPress={onSave}
+                style={[
+                  localStyles.actionButton,
+                  saveDisabled && localStyles.actionButtonDisabled,
+                ]}>
                 <Text style={localStyles.buttonText}>Save</Text>
               </Pressable>
             </View>
@@ -100,6 +101,9 @@ const localStyles = StyleSheet.create({
     justifyContent: 'center',
     borderColor: '#1A202C',
     paddingHorizontal: 8,
+  },
+  actionButtonDisabled: {
+    opacity: 0.45,
   },
   buttonText: {
     fontFamily: 'Chewy',

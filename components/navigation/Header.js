@@ -46,9 +46,6 @@ export const Header = ({
   setLoggedIn,
   onLogin,
   username,
-  setUsername,
-  password,
-  setPassword,
   loginVisible,
   setLoginVisible,
   lastName
@@ -105,7 +102,19 @@ export const Header = ({
         )}
 
         {/* Sign Out / Login Button */}
-        <Pressable onPress={() => (loggedIn ? setLoggedIn(false) : setLoginVisible(!loginVisible))}>
+        <Pressable
+          onPress={() => {
+            if (loggedIn) {
+              setLoggedIn(false);
+              return;
+            }
+
+            if (loginVisible) {
+              setLoginVisible(false);
+            } else {
+              setLoginVisible(true);
+            }
+          }}>
           <Text
             style={{
               color: '#FFFFFF',
@@ -118,13 +127,7 @@ export const Header = ({
       </View>
 
       {loginVisible && (
-        <LoginPanel
-          onLogin={onLogin}
-          username={username}
-          setUsername={setUsername}
-          password={password}
-          setPassword={setPassword}
-        />
+        <LoginPanel onLogin={onLogin} />
       )}
     </View>
   );

@@ -59,16 +59,20 @@
       // Single Page Apps for GitHub Pages
       // This script takes the current URL path and redirects it into a query parameter
       // so the React app can pick it up and route to the correct page seamlessly.
-      var segmentCount = 1; // Set to 1 because your repo name is /Documentation/
       var l = window.location;
-      
-      var pathSegments = l.pathname.split('/').slice(1);
-      var repoSegment = pathSegments.slice(0, segmentCount).join('/');
-      var targetPath = '/' + pathSegments.slice(segmentCount).join('/');
+      var isProjectPage = /\.github\.io$/i.test(l.hostname);
+      var documentationPrefix = '/Documentation';
+      var hasDocumentationPrefix =
+        l.pathname === documentationPrefix ||
+        l.pathname.indexOf(documentationPrefix + '/') === 0;
+      var targetPath = hasDocumentationPrefix
+        ? l.pathname.slice(documentationPrefix.length) || '/'
+        : l.pathname;
+      var basePath = isProjectPage ? documentationPrefix : '';
 
       if (targetPath !== '/' && targetPath !== '') {
         var redirectUrl = l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + 
-                          '/' + repoSegment + '/?p=' + encodeURIComponent(targetPath) + l.hash;
+                          basePath + '/?p=' + encodeURIComponent(targetPath) + l.hash;
         window.history.replaceState(null, null, redirectUrl);
         l.replace(redirectUrl);
       }

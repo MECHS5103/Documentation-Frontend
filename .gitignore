@@ -33,6 +33,12 @@ yarn-error.*
 # local env files
 .env*.local
 
+# deployment credentials and local CLI state
+apps-script/.clasp.json
+.clasprc.json
+firebase-debug.log
+firebase-debug.*.log
+
 # typescript
 *.tsbuildinfo
 

@@ -1,0 +1,37 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isEditor() {
+      return request.auth != null
+        && request.auth.token.get('email_verified', false) == true
+        && request.auth.token.get('editor', false) == true;
+    }
+
+    function isValidVideo(fileName) {
+      return request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 25 * 1024 * 1024
+        && (
+          (request.resource.contentType == 'video/mp4'
+            && fileName.matches('^[A-Za-z0-9-]{16,80}\\.mp4$'))
+          || (request.resource.contentType == 'video/quicktime'
+            && fileName.matches('^[A-Za-z0-9-]{16,80}\\.mov$'))
+          || (request.resource.contentType == 'video/webm'
+            && fileName.matches('^[A-Za-z0-9-]{16,80}\\.webm$'))
+        );
+    }
+
+    match /videos/{fileName} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if resource == null && isEditor() && isValidVideo(fileName);
+      allow update: if false;
+      allow delete: if isEditor();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

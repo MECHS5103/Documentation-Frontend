@@ -1,10 +1,16 @@
 // services/api.js
 export const API_URL =
-  'https://api.team5103.com/api';
-// 'https://script.google.com/macros/s/AKfycbz3b2ncvEKcdHMvsdwukIR9EATgIPZG0pk4ry-NpyIHFYWxZAPqJY1Va9b6vuVuoSf5jw/exec';
+  process.env.EXPO_PUBLIC_APPS_SCRIPT_URL || '';
+
+export const getApiUrl = () => {
+  if (!API_URL) {
+    throw new Error('The documentation API is not configured for this deployment.');
+  }
+  return API_URL;
+};
 
 export const postApi = async (body) => {
-  const response = await fetch(API_URL, {
+  const response = await fetch(getApiUrl(), {
     method: 'POST',
     headers: {
       'Content-Type': 'text/plain;charset=utf-8',
@@ -14,7 +20,7 @@ export const postApi = async (body) => {
   return response.json();
 };
 
-export const fetchLessonData = async (catArg, secArg, lesArg) => {
+export const fetchLessonDocument = async (catArg, secArg, lesArg) => {
   // Support both (category, section, lesson) AND ({ category, section, lesson })
   let category = catArg;
   let section = secArg;
@@ -27,10 +33,10 @@ export const fetchLessonData = async (catArg, secArg, lesArg) => {
   }
 
   if (!category || !section || !lesson) {
-    return [];
+    return { data: [], version: 0 };
   }
 
-  const url = `${API_URL}?category=${encodeURIComponent(
+  const url = `${getApiUrl()}?category=${encodeURIComponent(
     category
   )}&section=${encodeURIComponent(section)}&lesson=${encodeURIComponent(
     lesson
@@ -42,34 +48,44 @@ export const fetchLessonData = async (catArg, secArg, lesArg) => {
       redirect: 'follow',
     });
 
+    if (!response.ok) {
+      throw new Error('The page request failed.');
+    }
+
     const rawText = await response.text();
 
     if (!rawText || rawText.trim() === '') {
-      return [];
+      throw new Error('The page response was empty.');
     }
 
     let json = {};
     try {
       json = JSON.parse(rawText);
     } catch (parseErr) {
-      console.error('Failed to parse response JSON:', parseErr);
-      return [];
+      throw new Error('The page response was invalid.');
     }
 
     if (json.error) {
-      console.error('Apps Script error:', json.error);
-      return [];
+      throw new Error(json.error);
     }
 
     if (json && Array.isArray(json.data)) {
-      return json.data;
+      return {
+        data: json.data,
+        version: Number.isInteger(json.version) ? json.version : 0,
+      };
     } else if (Array.isArray(json)) {
-      return json;
+      return { data: json, version: 0 };
     }
 
-    return [];
+    return { data: [], version: 0 };
   } catch (error) {
     console.error('Error fetching lesson data:', error);
     throw error;
   }
+};
+
+export const fetchLessonData = async (...args) => {
+  const document = await fetchLessonDocument(...args);
+  return document.data;
 };
