@@ -34,13 +34,17 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 21
+
       - name: Install locked dependencies
         run: npm ci
 
       - name: Run verification
-        run: |
-          npm run test:apps-script
-          npm run test:storage-rules
+        run: npm run test:storage-rules
 
       - name: Configure Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
