@@ -2,7 +2,6 @@
 import React from 'react';
 import { View, Text, Image, Pressable, useWindowDimensions } from 'react-native';
 import styles from '../../styles';
-import LoginPanel from './LoginPanel';
 
 export const Logo = ({ navPanel, setNavPanel }) => {
   const { width } = useWindowDimensions();
@@ -125,10 +124,6 @@ export const Header = ({
           </Text>
         </Pressable>
       </View>
-
-      {loginVisible && (
-        <LoginPanel onLogin={onLogin} />
-      )}
     </View>
   );
 };

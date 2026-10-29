@@ -3,6 +3,7 @@ import { View, Text, Pressable, useWindowDimensions, StyleSheet } from 'react-na
 import styles from '../../styles';
 import Header from './Header';
 import NavBar from './NavBar';
+import LoginPanel from './LoginPanel';
 
 export const HeaderNav = ({
   navPanel,
@@ -67,6 +68,21 @@ export const HeaderNav = ({
           </View>
         )}
       </View>
+
+      {/* Login popup: rendered here (not inside Header) so it stacks above the
+          nav bar row (zIndex 30) instead of being covered by it. */}
+      {loginVisible && !loggedIn && (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            top: isMobile ? 45 : 75,
+            right: 0,
+            zIndex: 100,
+          }}>
+          <LoginPanel onLogin={onLogin} />
+        </View>
+      )}
 
       {/* Desktop Decorative Accent Layer (Hidden on Mobile to eliminate gray bar glitches) */}
       {!isMobile && (
