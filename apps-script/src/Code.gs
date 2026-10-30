@@ -643,7 +643,15 @@ function doPost(e) {
       principal = verifyEditorToken(data.idToken);
     } catch (authError) {
       console.warn("Denied content mutation", authError.message);
-      return createResponse("error", "Access Denied", "ACCESS_DENIED");
+      var showReason = false;
+      try {
+        showReason = PropertiesService.getScriptProperties().getProperty("DEBUG_AUTH") === "true";
+      } catch (propError) {}
+      return createResponse(
+        "error",
+        showReason ? "Access Denied: " + authError.message : "Access Denied",
+        "ACCESS_DENIED"
+      );
     }
 
     var payload;
