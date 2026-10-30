@@ -40,7 +40,9 @@ const styles = StyleSheet.create({
 
   /* --- Scrollable Content Containers --- */
   TocWrapperDesktop: {
-    height: '100%',
+    // Stretch to the full height of the body row. (A '100%' height does not
+    // resolve inside this flex row, which is why the list never scrolled.)
+    alignSelf: 'stretch',
     width: 180,
     marginRight: 16,
     flexShrink: 0,
@@ -194,6 +196,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRightWidth: 3,
     borderColor: '#1A202C',
+  },
+  // Desktop sidebar: fills the height of the page so its list can scroll, sits
+  // flush under the nav bar, and its right border lines up with the nav bar's
+  // left border (x = 158-162).
+  TableOfContentsDesktop: {
+    flex: 1,
+    minHeight: 0,
+    height: 'auto',
+    width: 162,
+    marginTop: 0,
+    // The logo is 162px tall but the header + nav row end near 121px, so the
+    // logo hangs ~40px into the page. Start the content below it.
+    paddingTop: 50,
+    borderRightWidth: 4,
   },
   TableOfContentsMobile: {
     width: '100%',
