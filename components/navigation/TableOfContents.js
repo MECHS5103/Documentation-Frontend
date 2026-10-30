@@ -180,7 +180,9 @@ export const TableOfContents = ({
   };
 
   return (
-    <View style={{ width: '100%' }}>
+    // On desktop the root must fill the sidebar's height; otherwise it grows to
+    // fit the whole list and the inner ScrollView never has anything to scroll.
+    <View style={[{ width: '100%' }, !isMobile && { flex: 1, minHeight: 0 }]}>
       {/* 1. Mobile Menu Button */}
       {isMobile && !useBottomToggle && (
         <TouchableOpacity
@@ -199,6 +201,7 @@ export const TableOfContents = ({
         <View
           style={[
             styles.TableOfContents,
+            !isMobile && styles.TableOfContentsDesktop,
             isMobile && styles.TableOfContentsMobile,
           ]}>
           {/* Header Row */}
@@ -247,7 +250,7 @@ export const TableOfContents = ({
             bounces={false}
             overScrollMode="never"
             showsVerticalScrollIndicator={true}
-            style={{ flex: 1 }}
+            style={{ flex: 1, minHeight: 0 }}
             contentContainerStyle={{ paddingBottom: 20 }}>
             {displaySubjects.map((subject, sIndex) => {
               return (

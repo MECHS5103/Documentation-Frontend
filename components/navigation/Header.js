@@ -12,27 +12,15 @@ export const Logo = ({ navPanel, setNavPanel }) => {
       style={[
         styles.Logo,
         isMobile && styles.LogoMobile,
-        navPanel !== 'Landing Page' ? { borderBottomRightRadius: 0 } : null,
+        // Next to the nav bar, the logo's right edge lines up with the nav
+        // bar's left border, so draw it with the same 4px dark border.
+        !isMobile ? { borderRightWidth: 4 } : null,
       ]}
       onPress={() => setNavPanel("Landing Page")}>
       <Image
         source={require('../../assets/logo.png')}
         style={[styles.LogoImage, isMobile && styles.LogoImageMobile]}
         resizeMode="contain"
-      />
-      <View
-        style={{
-          position: 'absolute',
-          right: 0,
-          bottom: -4,
-          height: 50,
-          width: 100,
-          backgroundColor: '207ADB',
-          borderRightWidth: 4,
-          borderBottomWidth: 4,
-          borderBottomRightRadius: 35,
-          borderColor: '#1A202C',
-        }}
       />
     </Pressable>
   );
@@ -59,6 +47,22 @@ export const Header = ({
   return (
     <View style={[styles.Header, isMobile && styles.HeaderMobile]}>
       <Logo navPanel={navPanel} setNavPanel={setNavPanel} />
+      {/* The logo's right border should only show from the nav bar down, where
+          it joins the nav bar's left border. Hide it beside the plain header. */}
+      {!isMobile && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 158,
+            width: 4,
+            height: 75,
+            backgroundColor: '#207ADB',
+            zIndex: 26,
+          }}
+        />
+      )}
       <Text style={[styles.HeaderText, isMobile && styles.HeaderTextMobile]}>
         Documentation
       </Text>
