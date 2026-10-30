@@ -582,7 +582,7 @@ export default function App() {
               isMobile && styles.PageMobile,
               { flex: 1, height: '100%' },
             ]}
-            contentContainerStyle={{ paddingTop: 0, paddingBottom: isMobile ? 120 : 80 }}
+            contentContainerStyle={{ width: '100%', paddingTop: 0, paddingBottom: isMobile ? 120 : 80 }}
             nestedScrollEnabled={true}
             showsVerticalScrollIndicator={true}
             showsHorizontalScrollIndicator={false}>

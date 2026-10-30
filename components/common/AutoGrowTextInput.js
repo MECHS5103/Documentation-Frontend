@@ -11,7 +11,8 @@ export const AutoGrowTextInput = ({ style, value, ...props }) => {
     const node = ref.current;
     if (Platform.OS !== 'web' || !node || !node.style) return;
     node.style.height = 'auto';
-    node.style.height = node.scrollHeight + 'px';
+    const border = node.offsetHeight - node.clientHeight;
+    node.style.height = node.scrollHeight + border + 'px';
   };
 
   useLayoutEffect(resize, [value]);
