@@ -70,3 +70,31 @@ test('caps element counts before any sheet work', () => {
   }));
   assert.throws(() => context.validateSavePayload(payload), /too many/i);
 });
+
+test('accepts and normalizes rename entries', () => {
+  const context = loadScript();
+  const body = validPayload();
+  body.renames = [
+    { type: 'section', from: ' Old ', to: ' New ' },
+    { type: 'lesson', section: 'New', from: 'A', to: 'B' },
+  ];
+  const result = context.validateSavePayload(body);
+  assert.equal(result.renames.length, 2);
+  assert.equal(result.renames[0].from, 'Old');
+  assert.equal(result.renames[1].section, 'New');
+});
+
+test('defaults to no renames and rejects malformed ones', () => {
+  const context = loadScript();
+  assert.equal(context.validateSavePayload(validPayload()).renames.length, 0);
+  for (const bad of [
+    'nope',
+    [{ type: 'category', from: 'a', to: 'b' }],
+    [{ type: 'lesson', from: 'a', to: 'b' }],
+    [{ type: 'section', from: 'a', to: '' }],
+  ]) {
+    const body = validPayload();
+    body.renames = bad;
+    assert.throws(() => context.validateSavePayload(body));
+  }
+});

@@ -299,7 +299,7 @@ export default function App() {
     setLastName('');
   };
 
-  const handleSave = async (tocOverride = null) => {
+  const handleSave = async (tocOverride = null, renames = []) => {
     if (!currentDocumentReady) {
       alert('Wait for the current page to finish loading before saving.');
       return;
@@ -349,6 +349,7 @@ export default function App() {
         expectedTocVersion: tocVersion,
         tocData: dataToSave,
         pageElements: updatedPageElements,
+        renames,
       });
       if (result.status === 'success') {
         alert('Data saved successfully!');
@@ -356,7 +357,32 @@ export default function App() {
         setPageVersion(result.pageVersion);
         setTocVersion(result.tocVersion);
 
-        const cacheKey = `${navPanel}-${activeSection}-${activeLesson}`;
+        // If this page (or its section) was renamed, the open page now lives
+        // under the new names. Drop cached copies of every renamed page and
+        // follow the open one to its new name.
+        let savedSection = activeSection;
+        let savedLesson = activeLesson;
+        if (renames.length > 0) {
+          const same = (a, b) =>
+            String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+          renames.forEach((rename) => {
+            if (rename.type === 'section' && same(rename.from, activeSection)) {
+              savedSection = rename.to;
+            }
+            if (
+              rename.type === 'lesson' &&
+              same(rename.section, activeSection) &&
+              same(rename.from, activeLesson)
+            ) {
+              savedLesson = rename.to;
+            }
+          });
+          Object.keys(dataCache.pages).forEach((key) => {
+            if (key.startsWith(`${navPanel}-`)) delete dataCache.pages[key];
+          });
+        }
+
+        const cacheKey = `${navPanel}-${savedSection}-${savedLesson}`;
         dataCache.pages[cacheKey] = {
           pageElements: updatedPageElements,
           version: result.pageVersion,
@@ -366,6 +392,11 @@ export default function App() {
           dataCache.toc[navPanel].tocData = dataToSave;
           dataCache.toc[navPanel].version = result.tocVersion;
           dataCache.toc[navPanel].timestamp = Date.now();
+        }
+
+        if (savedSection !== activeSection || savedLesson !== activeLesson) {
+          setActiveSection(savedSection);
+          setActiveLesson(savedLesson);
         }
       } else if (result.code === 'VERSION_CONFLICT') {
         delete dataCache.pages[`${navPanel}-${activeSection}-${activeLesson}`];
@@ -526,7 +557,9 @@ export default function App() {
               activeLesson={activeLesson}
               onSelectLesson={handleSelectLesson}
               loggedIn={loggedIn}
-              onSave={(flattenedToc) => handleSave(flattenedToc)}
+              onSave={(flattenedToc, renames) =>
+                handleSave(flattenedToc, renames)
+              }
               onUpdateTocData={(newTocData) => {
                 setTocData(newTocData);
                 setHasSaved(false);
@@ -926,7 +959,9 @@ export default function App() {
               activeLesson={activeLesson}
               onSelectLesson={handleSelectLesson}
               loggedIn={loggedIn}
-              onSave={(flattenedToc) => handleSave(flattenedToc)}
+              onSave={(flattenedToc, renames) =>
+                handleSave(flattenedToc, renames)
+              }
               onUpdateTocData={(newTocData) => {
                 setTocData(newTocData);
                 setHasSaved(false);

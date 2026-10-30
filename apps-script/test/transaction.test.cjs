@@ -318,3 +318,71 @@ test('reports a busy save without touching spreadsheets', () => {
   assert.equal(events.some((event) => event.type === 'update'), false);
   assert.equal(lock.released, false);
 });
+
+test('renames a lesson and a section across every page of that category', () => {
+  const { context, pageSheet } = loadScript();
+  // Add a sibling page and a page in another category to the pages spreadsheet.
+  const other = context.SpreadsheetApp.openById('pages');
+  const sibling = other.insertSheet('Programming_Functions');
+  sibling.apply([['Programming', 'JavaScript', 'Functions', 2], ['Title', '', '', '']]);
+  const unrelated = other.insertSheet('Build_Variables');
+  unrelated.apply([['Build', 'JavaScript', 'Variables', 1], ['Title', '', '', '']]);
+
+  const result = context.saveVersionedContent(
+    payload({
+      renames: [
+        { type: 'section', from: 'JavaScript', to: 'JS Basics' },
+        { type: 'lesson', section: 'JavaScript', from: 'Variables', to: 'Vars' },
+      ],
+    }),
+    principal,
+    { pages: 'pages', toc: 'toc' }
+  );
+
+  assert.deepEqual(clone(result), { pageVersion: 5, tocVersion: 8 });
+  assert.deepEqual(pageSheet.usedValues()[0], ['Programming', 'JS Basics', 'Vars', 5]);
+  assert.deepEqual(sibling.usedValues()[0], ['Programming', 'JS Basics', 'Functions', 2]);
+  assert.deepEqual(unrelated.usedValues()[0], ['Build', 'JavaScript', 'Variables', 1]);
+});
+
+test('refuses renames that would give two pages the same name', () => {
+  const { context, events, pageSheet } = loadScript();
+  const sibling = context.SpreadsheetApp.openById('pages').insertSheet('Programming_Functions');
+  sibling.apply([['Programming', 'JavaScript', 'Functions', 2], ['Title', '', '', '']]);
+
+  assert.throws(
+    () =>
+      context.saveVersionedContent(
+        payload({
+          renames: [
+            { type: 'lesson', section: 'JavaScript', from: 'Functions', to: 'Variables' },
+          ],
+        }),
+        principal,
+        { pages: 'pages', toc: 'toc' }
+      ),
+    (error) => error.code === 'INVALID_PAYLOAD'
+  );
+  assert.equal(events.some((event) => event.type === 'update'), false);
+  assert.deepEqual(pageSheet.usedValues()[0], ['Programming', 'JavaScript', 'Variables', 4]);
+});
+
+test('restores renamed headers if a later write fails', () => {
+  const { context, pageSheet } = loadScript({ failOnceFor: 'toc' });
+  const sibling = context.SpreadsheetApp.openById('pages').insertSheet('Programming_Functions');
+  sibling.apply([['Programming', 'JavaScript', 'Functions', 2], ['Title', '', '', '']]);
+
+  assert.throws(
+    () =>
+      context.saveVersionedContent(
+        payload({
+          renames: [{ type: 'lesson', section: 'JavaScript', from: 'Functions', to: 'Fns' }],
+        }),
+        principal,
+        { pages: 'pages', toc: 'toc' }
+      ),
+    /simulated write failure/
+  );
+  assert.deepEqual(sibling.usedValues()[0], ['Programming', 'JavaScript', 'Functions', 2]);
+  assert.deepEqual(pageSheet.usedValues()[0], ['Programming', 'JavaScript', 'Variables', 4]);
+});

@@ -104,7 +104,9 @@ const styles = StyleSheet.create({
   },
   LogoMobile: {
     width: 95,
-    height: 83,
+    // 45px header + 38px nav bar - the nav bar's 4px overlap, so the logo's
+    // bottom border lines up with the nav bar's bottom border.
+    height: 79,
     borderBottomRightRadius: 0,
     borderBottomWidth: 4,
     borderRightWidth: 0,
@@ -138,7 +140,7 @@ const styles = StyleSheet.create({
     zIndex: 6,
   },
   NavBarMobile: {
-    marginLeft: 95, // Matches mobile logo width exactly
+    marginLeft: 0, // The NavBar wrapper offsets this by the mobile logo width
     height: 38,
     borderTopLeftRadius: 15,
     borderLeftWidth: 2,

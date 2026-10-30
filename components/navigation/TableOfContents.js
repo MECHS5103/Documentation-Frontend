@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import styles from '../../styles';
+import AutoGrowTextInput from '../common/AutoGrowTextInput';
 
 export const SubjectText = ({ text, isMobile }) => (
   <Text style={isMobile ? styles.SubjectTextMobile : styles.SubjectText}>
@@ -37,12 +38,14 @@ const parseFlatDataToNested = (flatData = []) => {
     if (itemType === 'subjecttext') {
       result.push({
         text: item.text,
+        orig: item.text,
         lessons: [],
       });
     } else if (itemType === 'lessontext') {
       if (result.length > 0) {
         result[result.length - 1].lessons.push({
           text: item.text,
+          orig: item.text,
         });
       }
     }
@@ -90,15 +93,92 @@ export const TableOfContents = ({
     setIsEditing(true);
   };
 
+  const handleRenameSubject = (sIndex, text) => {
+    const updated = [...draftSubjects];
+    updated[sIndex] = { ...updated[sIndex], text };
+    setDraftSubjects(updated);
+  };
+
+  const handleRenameLesson = (sIndex, lIndex, text) => {
+    const updated = [...draftSubjects];
+    const lessons = [...updated[sIndex].lessons];
+    lessons[lIndex] = { ...lessons[lIndex], text };
+    updated[sIndex] = { ...updated[sIndex], lessons };
+    setDraftSubjects(updated);
+  };
+
+  // Returns an error message, or null when every name is usable.
+  const validateDraftNames = (subjects) => {
+    const seenSubjects = new Set();
+    for (const subject of subjects) {
+      const subjectName = subject.text.trim();
+      if (!subjectName) return 'Section names cannot be empty.';
+      if (seenSubjects.has(subjectName.toLowerCase())) {
+        return `There is more than one section named "${subjectName}".`;
+      }
+      seenSubjects.add(subjectName.toLowerCase());
+
+      const seenLessons = new Set();
+      for (const lesson of subject.lessons) {
+        const lessonName = lesson.text.trim();
+        if (!lessonName) return `A lesson in "${subjectName}" has no name.`;
+        if (seenLessons.has(lessonName.toLowerCase())) {
+          return `"${subjectName}" has more than one lesson named "${lessonName}".`;
+        }
+        seenLessons.add(lessonName.toLowerCase());
+      }
+    }
+    return null;
+  };
+
+  // Compares the edited names with the ones the page was loaded with, so the
+  // server can move each renamed page's content over to its new name.
+  const collectRenames = (subjects) => {
+    const renames = [];
+    subjects.forEach((subject) => {
+      if (subject.orig != null && subject.text !== subject.orig) {
+        renames.push({ type: 'section', from: subject.orig, to: subject.text });
+      }
+      if (subject.orig == null) return;
+      subject.lessons.forEach((lesson) => {
+        if (lesson.orig != null && lesson.text !== lesson.orig) {
+          renames.push({
+            type: 'lesson',
+            section: subject.orig,
+            from: lesson.orig,
+            to: lesson.text,
+          });
+        }
+      });
+    });
+    return renames;
+  };
+
   const handleSaveEdit = () => {
-    const flattened = flattenNestedToFlat(draftSubjects);
+    const trimmedSubjects = draftSubjects.map((subject) => ({
+      ...subject,
+      text: subject.text.trim(),
+      lessons: subject.lessons.map((lesson) => ({
+        ...lesson,
+        text: lesson.text.trim(),
+      })),
+    }));
+
+    const problem = validateDraftNames(trimmedSubjects);
+    if (problem) {
+      if (typeof alert === 'function') alert(problem);
+      return;
+    }
+
+    const flattened = flattenNestedToFlat(trimmedSubjects);
+    const renames = collectRenames(trimmedSubjects);
 
     if (onUpdateTocData) {
       onUpdateTocData(flattened);
     }
 
     if (onSave) {
-      onSave(flattened);
+      onSave(flattened, renames);
     }
 
     setIsEditing(false);
@@ -270,10 +350,22 @@ export const TableOfContents = ({
                     <View
                       style={
                         isEditing
-                          ? { paddingRight: 4 }
+                          ? { paddingRight: 0 }
                           : { flex: 1, paddingRight: 4 }
                       }>
-                      <SubjectText text={subject.text} isMobile={isMobile} />
+                      {isEditing ? (
+                        <AutoGrowTextInput
+                          style={[tocStyles.nameInput, tocStyles.subjectInput]}
+                          value={subject.text}
+                          onChangeText={(text) =>
+                            handleRenameSubject(sIndex, text.replace(/\n/g, ' '))
+                          }
+                          placeholder="Section name..."
+                          placeholderTextColor="#A0AEC0"
+                        />
+                      ) : (
+                        <SubjectText text={subject.text} isMobile={isMobile} />
+                      )}
                     </View>
 
                     {isEditing && (
@@ -350,6 +442,21 @@ export const TableOfContents = ({
                             tocStyles.itemRow,
                             isEditing && tocStyles.itemRowEditing,
                           ]}>
+                          {isEditing ? (
+                            <AutoGrowTextInput
+                              style={tocStyles.nameInput}
+                              value={lesson.text}
+                              onChangeText={(text) =>
+                                handleRenameLesson(
+                                  sIndex,
+                                  lIndex,
+                                  text.replace(/\n/g, ' ')
+                                )
+                              }
+                              placeholder="Lesson name..."
+                              placeholderTextColor="#A0AEC0"
+                            />
+                          ) : (
                           <Pressable
                             style={({ hovered, pressed }) => [
                               isEditing ? null : { flex: 1 },
@@ -383,6 +490,7 @@ export const TableOfContents = ({
                               }
                             />
                           </Pressable>
+                          )}
 
                           {isEditing && (
                             <View style={tocStyles.actionGroup}>
@@ -598,6 +706,22 @@ const tocStyles = StyleSheet.create({
     color: '#E53E3E',
     fontWeight: 'bold',
     fontSize: 11,
+  },
+  nameInput: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#1A202C',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    fontSize: 13,
+    color: '#1A202C',
+  },
+  subjectInput: {
+    fontFamily: 'Chewy',
+    fontSize: 14,
+    textTransform: 'uppercase',
   },
   stackedInputBox: {
     marginTop: 6,

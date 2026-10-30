@@ -20,6 +20,10 @@ export const NavBar = ({ navPanel, setNavPanel }) => {
         borderBottomRightRadius: 100,
         flexShrink: 1,
         minWidth: 0,
+        // On phones the nav bar starts where the logo ends. The offset lives
+        // here (not inside the bar) so this blue backing doesn't paint over
+        // the logo's bottom border.
+        marginLeft: isMobile ? 95 : 0,
       }}>
       <View
         style={[

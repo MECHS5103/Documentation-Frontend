@@ -21,26 +21,9 @@ export const HeaderNav = ({
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
-  return (
-    <View style={styles.HeaderPage}>
-      {/* Header Container */}
-      <Header
-        navPanel={navPanel}
-        setNavPanel={setNavPanel}
-        loggedIn={loggedIn}
-        setLoggedIn={setLoggedIn}
-        onLogin={onLogin}
-        username={username}
-        loginVisible={loginVisible}
-        setLoginVisible={setLoginVisible}
-        lastName={lastName}
-      />
+  const showActionButtons = navPanel !== 'Landing Page' && loggedIn;
+  const actionButtons = showActionButtons ? (
 
-      {/* Navigation Bar Row + Action Buttons */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#CBD5E1', zIndex: 30, marginLeft: 158 }}>
-        <NavBar navPanel={navPanel} setNavPanel={setNavPanel} style={{ borderTopLeftRadius: 100, borderTopWidth: 4, borderColor: '#1A202C' }} />
-
-        {navPanel !== 'Landing Page' && loggedIn && (
           <View
             style={[
               localStyles.actionButtonsContainer,
@@ -72,8 +55,35 @@ export const HeaderNav = ({
               </Pressable>
             </View>
           </View>
-        )}
+  ) : null;
+
+  return (
+    <View style={styles.HeaderPage}>
+      {/* Header Container */}
+      <Header
+        navPanel={navPanel}
+        setNavPanel={setNavPanel}
+        loggedIn={loggedIn}
+        setLoggedIn={setLoggedIn}
+        onLogin={onLogin}
+        username={username}
+        loginVisible={loginVisible}
+        setLoginVisible={setLoginVisible}
+        lastName={lastName}
+      />
+
+      {/* Navigation Bar Row + Action Buttons */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#CBD5E1', zIndex: isMobile ? 10 : 30, marginLeft: isMobile ? 0 : 158 }}>
+        <NavBar navPanel={navPanel} setNavPanel={setNavPanel} style={{ borderTopLeftRadius: 100, borderTopWidth: 4, borderColor: '#1A202C' }} />
+
+        {!isMobile && actionButtons}
       </View>
+
+      {/* On phones there is no room beside the tabs, so Save and Cancel get
+          their own row underneath instead of being cut off. */}
+      {isMobile && showActionButtons && (
+        <View style={localStyles.mobileActionRow}>{actionButtons}</View>
+      )}
 
       {/* Login popup: rendered here (not inside Header) so it stacks above the
           nav bar row (zIndex 30) instead of being covered by it. */}
@@ -101,6 +111,15 @@ export const HeaderNav = ({
 };
 
 const localStyles = StyleSheet.create({
+  mobileActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    backgroundColor: '#CBD5E1',
+    paddingTop: 2,
+    paddingBottom: 4,
+    paddingRight: 4,
+    zIndex: 29,
+  },
   actionButtonsContainer: {
     flexDirection: 'row',
     alignItems: 'center',

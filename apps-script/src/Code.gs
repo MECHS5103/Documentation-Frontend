@@ -335,6 +335,31 @@ function validateSavePayload(data) {
     return normalized;
   });
 
+  var renames = [];
+  if (data.renames !== undefined) {
+    if (!Array.isArray(data.renames) || data.renames.length > 500) {
+      invalidPayload("renames must be an array of at most 500 items.");
+    }
+    renames = data.renames.map(function (item) {
+      if (!item || Object.prototype.toString.call(item) !== "[object Object]") {
+        invalidPayload("Every rename must be an object.");
+      }
+      var renameType = requireString(item.type, "renames.type", 20, false);
+      if (renameType !== "section" && renameType !== "lesson") {
+        invalidPayload("Unsupported rename type.");
+      }
+      var rename = {
+        type: renameType,
+        from: requireString(item.from, "renames.from", 160, false),
+        to: requireString(item.to, "renames.to", 160, false)
+      };
+      if (renameType === "lesson") {
+        rename.section = requireString(item.section, "renames.section", 160, false);
+      }
+      return rename;
+    });
+  }
+
   return {
     category: category,
     section: section,
@@ -342,8 +367,82 @@ function validateSavePayload(data) {
     expectedPageVersion: requireVersion(data.expectedPageVersion, "expectedPageVersion"),
     expectedTocVersion: requireVersion(data.expectedTocVersion, "expectedTocVersion"),
     tocData: tocData,
-    pageElements: pageElements
+    pageElements: pageElements,
+    renames: renames
   };
+}
+
+function normalizeName(value) {
+  return String(value).trim().toLowerCase();
+}
+
+// Applies the section/lesson renames to one page's identity. Renames are keyed
+// on the names as they were BEFORE this save, so swaps (A->B, B->A) work.
+function renamedIdentity(renames, section, lesson) {
+  var newSection = section;
+  var newLesson = lesson;
+  (renames || []).forEach(function (rename) {
+    if (rename.type === "section" && normalizeName(rename.from) === normalizeName(section)) {
+      newSection = rename.to;
+    }
+    if (
+      rename.type === "lesson" &&
+      normalizeName(rename.section) === normalizeName(section) &&
+      normalizeName(rename.from) === normalizeName(lesson)
+    ) {
+      newLesson = rename.to;
+    }
+  });
+  return { section: newSection, lesson: newLesson };
+}
+
+// Works out which other page sheets need their section/lesson header rewritten
+// because of renames, and refuses renames that would make two pages collide.
+function planRenameHeaderUpdates(pagesSs, payload, currentPageSheet) {
+  var updates = [];
+  if (!payload.renames || payload.renames.length === 0) return updates;
+
+  var targetCategory = normalizeName(payload.category);
+  var seen = {};
+  var sheets = pagesSs.getSheets();
+
+  var register = function (section, lesson) {
+    var key = normalizeName(section) + "\u0000" + normalizeName(lesson);
+    if (seen[key]) {
+      throw createCodedError(
+        "INVALID_PAYLOAD",
+        "Renaming would give two pages the same section and lesson name."
+      );
+    }
+    seen[key] = true;
+  };
+
+  for (var i = 0; i < sheets.length; i++) {
+    var sheet = sheets[i];
+    if (
+      (currentPageSheet && sheet.getName() === currentPageSheet.getName()) ||
+      sheet.getLastRow() < 1
+    ) {
+      continue;
+    }
+    var header = sheet.getRange(1, 1, 1, 4).getValues()[0];
+    if (normalizeName(header[0]) !== targetCategory) {
+      continue;
+    }
+    var identity = renamedIdentity(payload.renames, String(header[1]), String(header[2]));
+    register(identity.section, identity.lesson);
+    if (identity.section !== String(header[1]) || identity.lesson !== String(header[2])) {
+      updates.push({
+        sheet: sheet,
+        oldRow: [header[0], header[1], header[2], header[3]],
+        newRow: [header[0], identity.section, identity.lesson, header[3]]
+      });
+    }
+  }
+
+  var current = renamedIdentity(payload.renames, payload.section, payload.lesson);
+  register(current.section, current.lesson);
+  return updates;
 }
 
 function quoteSheetName(name) {
@@ -503,6 +602,8 @@ function saveVersionedContent(payload, principal, spreadsheetIds) {
   var tocCreated = false;
   var pageSnapshot;
   var tocSnapshot;
+  var renameUpdates = [];
+  var appliedRenameUpdates = [];
 
   try {
     pagesSs = SpreadsheetApp.openById(spreadsheetIds.pages);
@@ -539,6 +640,9 @@ function saveVersionedContent(payload, principal, spreadsheetIds) {
       tocCreated = true;
     }
 
+    renameUpdates = planRenameHeaderUpdates(pagesSs, payload, pageSheet);
+    var finalIdentity = renamedIdentity(payload.renames, payload.section, payload.lesson);
+
     pageSnapshot = snapshotSheet(pageSheet);
     tocSnapshot = tocChanged ? snapshotSheet(tocSheet) : null;
 
@@ -551,8 +655,8 @@ function saveVersionedContent(payload, principal, spreadsheetIds) {
     var tocVersion = tocChanged ? currentTocVersion + 1 : currentTocVersion;
     var pageRows = buildPageRows(
       payload.category,
-      payload.section,
-      payload.lesson,
+      finalIdentity.section,
+      finalIdentity.lesson,
       pageElements,
       pageVersion
     );
@@ -560,6 +664,10 @@ function saveVersionedContent(payload, principal, spreadsheetIds) {
 
     try {
       writeRawValues(spreadsheetIds.pages, pageSheet.getName(), pageRows);
+      renameUpdates.forEach(function (update) {
+        writeRawValues(spreadsheetIds.pages, update.sheet.getName(), [update.newRow]);
+        appliedRenameUpdates.push(update);
+      });
       if (tocChanged) {
         writeRawValues(spreadsheetIds.toc, tocSheet.getName(), tocRows);
       }
@@ -586,6 +694,9 @@ function saveVersionedContent(payload, principal, spreadsheetIds) {
         } else {
           restoreSheetSnapshot(spreadsheetIds.pages, pageSheet, pageSnapshot);
         }
+        appliedRenameUpdates.forEach(function (update) {
+          writeRawValues(spreadsheetIds.pages, update.sheet.getName(), [update.oldRow]);
+        });
         if (tocChanged) {
           if (tocCreated) {
             tocSs.deleteSheet(tocSheet);
@@ -674,7 +785,11 @@ function doPost(e) {
         toc: TOC_SPREADSHEET_ID
       });
     } catch (saveError) {
-      if (saveError.code === "VERSION_CONFLICT" || saveError.code === "SAVE_BUSY") {
+      if (
+        saveError.code === "VERSION_CONFLICT" ||
+        saveError.code === "SAVE_BUSY" ||
+        saveError.code === "INVALID_PAYLOAD"
+      ) {
         return createResponse("error", saveError.message, saveError.code);
       }
       throw saveError;

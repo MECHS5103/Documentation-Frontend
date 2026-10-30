@@ -39,6 +39,8 @@ export const Header = ({
 }) => {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
+  // On narrow phones the name would collide with the title, so show only the icon.
+  const isNarrow = width < 520;
 
   // Format full name for the badge
   const userCut = username ? username.split(' ') : ['User'];
@@ -75,7 +77,7 @@ export const Header = ({
           top: isMobile ? 8 : 16,
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 12,
+          gap: isMobile ? 8 : 12,
           zIndex: 30,
         }}>
         {/* User Badge (Only renders when logged in) */}
@@ -93,14 +95,16 @@ export const Header = ({
               gap: 6,
             }}>
             <Text style={{ fontSize: 14 }}>👤</Text>
-            <Text
-              style={{
-                fontFamily: 'Chewy',
-                fontSize: 16,
-                color: '#1A202C',
-              }}>
-              {fullName}
-            </Text>
+            {!isNarrow && (
+              <Text
+                style={{
+                  fontFamily: 'Chewy',
+                  fontSize: 16,
+                  color: '#1A202C',
+                }}>
+                {fullName}
+              </Text>
+            )}
           </View>
         )}
 
