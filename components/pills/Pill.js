@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, TextInput, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, useWindowDimensions } from 'react-native';
 import styles from '../../styles';
+import AutoGrowTextInput from '../common/AutoGrowTextInput';
 import useDoubleClick from '../../hooks/useDoubleClick';
 
 export const Pill = ({
@@ -60,7 +61,7 @@ export const Pill = ({
       </View>
       <View style={styles.PillDescription}>
         {isEditing ? (
-          <TextInput
+          <AutoGrowTextInput
             style={[
               styles.PillDescriptionText,
               styles.ActiveInput,
@@ -71,7 +72,6 @@ export const Pill = ({
             onBlur={() => setIsEditing(false)}
             onSubmitEditing={() => setIsEditing(false)}
             autoFocus
-            multiline
           />
         ) : (
           <Pressable onPress={handleDoubleClick} style={{ width: '100%' }}>

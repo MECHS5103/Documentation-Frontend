@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Text, Pressable, TextInput, useWindowDimensions } from 'react-native';
+import { Text, Pressable, useWindowDimensions } from 'react-native';
 import styles from '../../styles';
+import AutoGrowTextInput from '../common/AutoGrowTextInput';
 import useDoubleClick from '../../hooks/useDoubleClick';
 
 export const Paragraph = ({ text, onUpdate, setHasSaved, loggedIn }) => {
@@ -28,7 +29,7 @@ export const Paragraph = ({ text, onUpdate, setHasSaved, loggedIn }) => {
 
   if (isEditing) {
     return (
-      <TextInput
+      <AutoGrowTextInput
         style={[
           styles.ParagraphText,
           isMobile && styles.ParagraphTextMobile,
@@ -40,7 +41,6 @@ export const Paragraph = ({ text, onUpdate, setHasSaved, loggedIn }) => {
         onBlur={() => setIsEditing(false)}
         onSubmitEditing={() => setIsEditing(false)}
         autoFocus
-        multiline
       />
     );
   }
