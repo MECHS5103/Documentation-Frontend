@@ -190,6 +190,10 @@ const styles = StyleSheet.create({
     height: '100%',
     width: 165,
     marginTop: 10,
+    // The logo is 162px tall but the header + nav row are only ~121px, so the
+    // logo hangs ~40px into the page. Start the TOC content below it so the
+    // "Contents" title is not clipped. (Mobile overrides padding below.)
+    paddingTop: 40,
     paddingRight: 10,
     backgroundColor: '#FFFFFF',
     borderRightWidth: 3,
