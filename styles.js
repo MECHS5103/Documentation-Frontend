@@ -162,6 +162,12 @@ const styles = StyleSheet.create({
   NavBarTextMobile: {
     fontSize: 16,
   },
+  NavBarTextCompact: {
+    fontSize: 24,
+  },
+  NavBarButtonCompact: {
+    paddingHorizontal: 8,
+  },
   NavBarButton: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -209,6 +215,7 @@ const styles = StyleSheet.create({
     // The logo is 162px tall but the header + nav row end near 121px, so the
     // logo hangs ~40px into the page. Start the content below it.
     paddingTop: 50,
+    paddingLeft: 14,
     borderRightWidth: 4,
   },
   TableOfContentsMobile: {
@@ -266,9 +273,10 @@ const styles = StyleSheet.create({
   },
   SubjectText: {
     textTransform: 'uppercase',
-    fontFamily: 'Arial',
-    color: '#000000',
-    fontWeight: 'bold',
+    fontFamily: 'Chewy',
+    fontSize: 15,
+    letterSpacing: 0.5,
+    color: '#1A202C',
   },
   SubjectTextMobile: {
     fontFamily: 'Chewy',
@@ -281,8 +289,8 @@ const styles = StyleSheet.create({
   LessonContainer: {
     marginTop: 5,
     marginBottom: 15,
-    marginLeft: 10,
-    paddingLeft: 10,
+    marginLeft: 2,
+    paddingLeft: 8,
     paddingBottom: 5,
     borderLeftWidth: 3,
     borderBottomWidth: 3,

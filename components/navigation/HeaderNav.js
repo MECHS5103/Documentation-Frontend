@@ -41,7 +41,13 @@ export const HeaderNav = ({
         <NavBar navPanel={navPanel} setNavPanel={setNavPanel} style={{ borderTopLeftRadius: 100, borderTopWidth: 4, borderColor: '#1A202C' }} />
 
         {navPanel !== 'Landing Page' && loggedIn && (
-          <View style={localStyles.actionButtonsContainer}>
+          <View
+            style={[
+              localStyles.actionButtonsContainer,
+              // On desktop the nav bar shrinks/scrolls instead, so Save and
+              // Cancel always stay on screen.
+              !isMobile && { flexShrink: 0 },
+            ]}>
             <View style={localStyles.buttonWrapper}>
               <Pressable
                 disabled={saveDisabled}

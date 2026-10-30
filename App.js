@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   ScrollView,
@@ -178,6 +178,16 @@ export default function App() {
     currentDocumentKey !== null &&
     documentLoadState.key === currentDocumentKey &&
     documentLoadState.status === 'error';
+  // Without these, a failed or empty table of contents left the page on an
+  // endless loading spinner with no explanation.
+  const tocFailed =
+    tocLoadState.category === navPanel && tocLoadState.status === 'error';
+  const tocEmpty =
+    tocLoadState.category === navPanel &&
+    tocLoadState.status === 'ready' &&
+    !tocData.some(
+      (item) => item.type && item.type.toLowerCase() === 'lessontext'
+    );
 
   useFetchData({
     navPanel,
@@ -207,6 +217,8 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  const hasSyncedUrl = useRef(false);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       let newPath = '/';
@@ -219,7 +231,34 @@ export default function App() {
           }
         }
       }
-      window.history.pushState({ path: newPath }, '', newPath);
+
+      // Only add a history entry when the address actually changes. Without
+      // this, page load and every Back/Forward press (which updates state from
+      // the URL) pushed a duplicate entry, so Back needed several presses and
+      // could never reach the landing page.
+      const alreadyThere =
+        !window.location.search &&
+        safeDecodeURIComponent(window.location.pathname) ===
+          safeDecodeURIComponent(newPath);
+
+      if (!alreadyThere) {
+        const currentPath = safeDecodeURIComponent(window.location.pathname);
+        // Picking a category lands on "/Category" and then the first lesson is
+        // selected automatically. Replace that bare entry instead of stacking
+        // a second one, so Back from the first lesson leaves the category.
+        const isAutoSelect =
+          currentPath !== '/' &&
+          currentPath.split('/').filter(Boolean).length === 1 &&
+          safeDecodeURIComponent(newPath).startsWith(`${currentPath}/`);
+
+        if (!hasSyncedUrl.current || isAutoSelect) {
+          // First sync on load / auto-selected lesson: no new history entry.
+          window.history.replaceState({ path: newPath }, '', newPath);
+        } else {
+          window.history.pushState({ path: newPath }, '', newPath);
+        }
+      }
+      hasSyncedUrl.current = true;
     }
   }, [navPanel, activeSection, activeLesson]);
 
@@ -500,7 +539,7 @@ export default function App() {
         {navPanel === 'Landing Page' ? (
           <LandingPage setNavPanel={handleNavPanelChange} />
         ) : loading || !currentDocumentReady ? (
-          currentDocumentFailed ? (
+          currentDocumentFailed || tocFailed || (tocEmpty && !loading) ? (
             <View
               style={{
                 flex: 1,
@@ -508,7 +547,22 @@ export default function App() {
                 alignItems: 'center',
                 padding: 24,
               }}>
-              <Text>Unable to load this page. Reload and try again.</Text>
+              <Text
+                style={{
+                  fontFamily: 'Chewy',
+                  fontSize: 22,
+                  color: '#1A202C',
+                  textAlign: 'center',
+                  maxWidth: 420,
+                }}>
+                {currentDocumentFailed
+                  ? 'Unable to load this page. Reload and try again.'
+                  : tocFailed
+                    ? 'Unable to load this section. Check your connection and reload to try again.'
+                    : loggedIn
+                      ? 'This section is empty. Use Edit TOC to add a first section and lesson.'
+                      : 'Nothing has been written for this section yet.'}
+              </Text>
             </View>
           ) : (
           <View
@@ -756,10 +810,11 @@ export default function App() {
                     {loggedIn && item.type !== 'Credits' && (
                       <View
                         style={{
-                          position: 'absolute',
-                          top: 18,
-                          right: 18,
-                          zIndex: 999,
+                          // In the normal flow (not absolutely positioned) so
+                          // the controls never cover the element's own text.
+                          alignSelf: 'flex-end',
+                          marginRight: 8,
+                          marginTop: 4,
                           flexDirection: 'row',
                           gap: 4,
                           alignItems: 'center',

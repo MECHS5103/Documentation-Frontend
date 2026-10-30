@@ -207,9 +207,11 @@ export const TableOfContents = ({
           {/* Header Row */}
           <View style={tocStyles.headerContainer}>
             {!isMobile && (
-              <Text style={tocStyles.headerTitle}>
-                {currentCategory} - Contents
-              </Text>
+              <View style={tocStyles.headerTitleBlock}>
+                <Text style={tocStyles.headerEyebrow}>{currentCategory}</Text>
+                <Text style={tocStyles.headerTitle}>Contents</Text>
+                <View style={tocStyles.headerRule} />
+              </View>
             )}
 
             {loggedIn && (
@@ -249,7 +251,7 @@ export const TableOfContents = ({
             nestedScrollEnabled={true}
             bounces={false}
             overScrollMode="never"
-            showsVerticalScrollIndicator={true}
+            showsVerticalScrollIndicator={false}
             style={{ flex: 1, minHeight: 0 }}
             contentContainerStyle={{ paddingBottom: 20 }}>
             {displaySubjects.map((subject, sIndex) => {
@@ -260,8 +262,17 @@ export const TableOfContents = ({
                     tocStyles.subjectWrapper,
                     isMobile && styles.SubjectContainerMobile,
                   ]}>
-                  <View style={tocStyles.itemRow}>
-                    <View style={{ flex: 1, paddingRight: 4 }}>
+                  <View
+                    style={[
+                      tocStyles.itemRow,
+                      isEditing && tocStyles.itemRowEditing,
+                    ]}>
+                    <View
+                      style={
+                        isEditing
+                          ? { paddingRight: 4 }
+                          : { flex: 1, paddingRight: 4 }
+                      }>
                       <SubjectText text={subject.text} isMobile={isMobile} />
                     </View>
 
@@ -333,10 +344,21 @@ export const TableOfContents = ({
                     {subject.lessons.map((lesson, lIndex) => {
                       const isActive = lesson.text === activeLesson;
                       return (
-                        <View key={lIndex} style={tocStyles.itemRow}>
+                        <View
+                          key={lIndex}
+                          style={[
+                            tocStyles.itemRow,
+                            isEditing && tocStyles.itemRowEditing,
+                          ]}>
                           <Pressable
-                            style={[
-                              { flex: 1 },
+                            style={({ hovered, pressed }) => [
+                              isEditing ? null : { flex: 1 },
+                              !isMobile && tocStyles.lessonRow,
+                              !isMobile &&
+                                !isActive &&
+                                (hovered || pressed) &&
+                                tocStyles.lessonRowHover,
+                              !isMobile && isActive && tocStyles.lessonRowActive,
                               isMobile && styles.LessonItemPillMobile,
                               isMobile &&
                                 isActive &&
@@ -353,9 +375,11 @@ export const TableOfContents = ({
                               isMobile={isMobile}
                               isActive={isActive}
                               style={
-                                !isMobile && isActive
-                                  ? { color: '#207ADB', fontWeight: 'bold' }
-                                  : null
+                                isMobile
+                                  ? null
+                                  : isActive
+                                    ? tocStyles.lessonTextActive
+                                    : tocStyles.lessonText
                               }
                             />
                           </Pressable>
@@ -434,37 +458,87 @@ const tocStyles = StyleSheet.create({
     marginBottom: 8,
     paddingBottom: 4,
   },
+  headerTitleBlock: {
+    marginBottom: 8,
+  },
+  headerEyebrow: {
+    fontFamily: 'Chewy',
+    fontSize: 13,
+    color: '#207ADB',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
   headerTitle: {
     fontFamily: 'Chewy',
-    fontSize: 16,
-    color: '#1E293B',
-    marginBottom: 6,
+    fontSize: 26,
+    lineHeight: 28,
+    color: '#1A202C',
+  },
+  headerRule: {
+    marginTop: 4,
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#207ADB',
+  },
+  lessonRow: {
+    borderWidth: 2,
+    borderColor: 'transparent',
+    borderRadius: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    marginVertical: 1,
+  },
+  lessonRowHover: {
+    backgroundColor: '#E8F1FC',
+  },
+  lessonRowActive: {
+    backgroundColor: '#207ADB',
+    borderColor: '#1A202C',
+    borderBottomWidth: 4,
+  },
+  lessonText: {
+    fontSize: 13,
+    color: '#2D3748',
+    marginBottom: 0,
+  },
+  lessonTextActive: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    marginBottom: 0,
   },
   headerBtnRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 6,
     marginBottom: 6,
   },
   editToggleBtn: {
-    backgroundColor: '#E2E8F0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderBottomWidth: 4,
+    borderColor: '#1A202C',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelBtn: {
     backgroundColor: '#FED7D7',
-    flex: 1,
+    flexGrow: 1,
+    minWidth: 100,
   },
   doneBtn: {
     backgroundColor: '#207ADB',
-    flex: 1,
+    flexGrow: 1,
+    minWidth: 100,
   },
   editToggleText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#334155',
+    fontFamily: 'Chewy',
+    fontSize: 13,
+    color: '#1A202C',
   },
   subjectWrapper: {
     marginBottom: 8,
@@ -476,9 +550,17 @@ const tocStyles = StyleSheet.create({
     minHeight: 24,
     marginVertical: 2,
   },
+  // While editing, the controls sit under each name instead of beside it, so
+  // narrow sidebar text is not squeezed into breaking mid-word.
+  itemRowEditing: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    marginBottom: 4,
+  },
   actionGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-end',
     gap: 2,
     marginLeft: 6,
   },
