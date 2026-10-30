@@ -163,7 +163,9 @@ function verifyEditorToken(idToken) {
     }
   );
 
-  if (response.getResponseCode() !== 200) throw new Error("Unauthorized");
+  if (response.getResponseCode() !== 200) {
+    throw new Error("Unauthorized (Firebase lookup returned " + response.getResponseCode() + ": " + response.getContentText().slice(0, 200) + ")");
+  }
 
   var body = JSON.parse(response.getContentText());
   if (!body.users || body.users.length !== 1) throw new Error("Unauthorized");
@@ -178,19 +180,17 @@ function verifyEditorToken(idToken) {
   }
   var provider = claims.firebase && claims.firebase.sign_in_provider;
 
-  if (
-    user.disabled === true ||
-    user.emailVerified !== true ||
-    !user.localId ||
-    claims.sub !== user.localId ||
-    claims.aud !== projectId ||
-    claims.iss !== "https://securetoken.google.com/" + projectId ||
-    claims.editor !== true ||
-    currentClaims.editor !== true ||
-    provider !== "google.com"
-  ) {
-    throw new Error("Unauthorized");
-  }
+  var reason = null;
+  if (user.disabled === true) reason = "account is disabled";
+  else if (user.emailVerified !== true) reason = "email is not verified";
+  else if (!user.localId || claims.sub !== user.localId) reason = "token user mismatch";
+  else if (claims.aud !== projectId || claims.iss !== "https://securetoken.google.com/" + projectId) {
+    reason = "token is for a different Firebase project (check FIREBASE_PROJECT_ID)";
+  } else if (provider !== "google.com") reason = "not a Google sign-in";
+  else if (currentClaims.editor !== true) reason = "account has no editor claim set on the server";
+  else if (claims.editor !== true) reason = "token is stale: sign out and back in after the editor claim was granted";
+
+  if (reason) throw new Error("Unauthorized (" + reason + ")");
 
   return {
     uid: user.localId,
