@@ -24,7 +24,8 @@ export const ElementSelectorMenu = ({ onSelect }) => {
     { label: 'Important', type: 'ImportantPill' },
     { label: 'Success', type: 'SuccessPill' },
     { label: 'Vocabulary', type: 'VocabularyPill' },
-    { label: 'Video', type: 'VideoPill' }
+    { label: 'Video', type: 'VideoPill' },
+    { label: 'Sheet', type: 'SheetsPill' },
   ];
 
   return (

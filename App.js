@@ -20,7 +20,10 @@ import {
   signOutEditor,
 } from './services/auth';
 import styles from './styles';
+import { normalizeCategory } from './constants/categories';
 import VideoPill from './components/pills/VideoPill';
+import SheetsPill from './components/pills/SheetsPill';
+import { starterSheet, serializeSheet } from './components/sheets/sheetModel';
 import ContributorsPill from './components/pills/ContributorsPill';
 
 import HeaderNav from './components/navigation/HeaderNav';
@@ -108,7 +111,9 @@ export default function App() {
     if (p) {
       const segments = p.split('/').filter(Boolean);
       return {
-        panel: segments[0] ? safeDecodeURIComponent(segments[0]) : 'Landing Page',
+        panel: segments[0]
+          ? normalizeCategory(safeDecodeURIComponent(segments[0]))
+          : 'Landing Page',
         section: segments[1] ? safeDecodeURIComponent(segments[1]) : '',
         lesson: segments[2] ? safeDecodeURIComponent(segments[2]) : '',
         isExplicit: true,
@@ -125,7 +130,9 @@ export default function App() {
     }
 
     return {
-      panel: segments[0] ? safeDecodeURIComponent(segments[0]) : 'Landing Page',
+      panel: segments[0]
+        ? normalizeCategory(safeDecodeURIComponent(segments[0]))
+        : 'Landing Page',
       section: segments[1] ? safeDecodeURIComponent(segments[1]) : '',
       lesson: segments[2] ? safeDecodeURIComponent(segments[2]) : '',
       isExplicit: true,
@@ -139,7 +146,10 @@ export default function App() {
       return initialRoute.panel;
     }
     if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('last_navPanel') || 'Landing Page';
+      return (
+        normalizeCategory(localStorage.getItem('last_navPanel')) ||
+        'Landing Page'
+      );
     }
     return 'Landing Page';
   });
@@ -451,6 +461,9 @@ export default function App() {
       newElement.title = 'New Video Title';
       newElement.caption = 'New video caption...';
       newElement.videoUrl = null;
+    } else if (type === 'SheetsPill') {
+      newElement.title = 'Sheet';
+      newElement.text = serializeSheet(starterSheet());
     } else if (type.endsWith('Pill')) {
       newElement.text = 'New description text...';
       if (type === 'CodePill') {
@@ -785,6 +798,23 @@ export default function App() {
                       />
                     );
                     break;
+                  case 'SheetsPill':
+                    elementComponent = (
+                      <SheetsPill
+                        key={`el-${index}`}
+                        text={item.text || ''}
+                        title={item.title || ''}
+                        onUpdateText={(newText) =>
+                          handleUpdateElementField(index, 'text', newText)
+                        }
+                        onUpdateTitle={(newTitle) =>
+                          handleUpdateElementField(index, 'title', newTitle)
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
                   case 'VideoPill':
                   case 'Video':
                     elementComponent = (
@@ -835,7 +865,7 @@ export default function App() {
                     style={{
                       position: 'relative',
                       width: '100%',
-                      maxWidth: 650,
+                      maxWidth: item.type === 'SheetsPill' ? 1100 : 650,
                       paddingHorizontal: 0,
                       alignSelf: isMobile ? 'center' : 'flex-start',
                       paddingTop: loggedIn ? 8 : 0,

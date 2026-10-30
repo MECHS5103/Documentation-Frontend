@@ -103,6 +103,22 @@ function doGet(e) {
             caption: captionVal,
             videoUrl: colC || ''
           });
+        } else if (type === 'SheetsPill') {
+          // A sheet is stored as numbered chunks ("1/3", "2/3", ...) because one
+          // cell holds at most 50,000 characters. Glue the chunks back together.
+          var chunkMarker = String(colC || '').match(/^(\d+)\/(\d+)$/);
+          var chunkIndex = chunkMarker ? parseInt(chunkMarker[1], 10) : 1;
+          var lastElement = responseArray[responseArray.length - 1];
+          if (chunkIndex > 1 && lastElement && lastElement.type === 'SheetsPill') {
+            lastElement.text += String(colB);
+          } else {
+            responseArray.push({
+              type: 'SheetsPill',
+              text: String(colB),
+              title: String(data[i][3] || ''),
+              language: ''
+            });
+          }
         } else {
           responseArray.push({
             type: type,
@@ -288,6 +304,7 @@ function validateSavePayload(data) {
     ImportantPill: true,
     SuccessPill: true,
     VocabularyPill: true,
+    SheetsPill: true,
     Credits: true
   };
 
@@ -327,9 +344,13 @@ function validateSavePayload(data) {
       normalized.text = requireString(
         item.text !== undefined ? item.text : (item.description || ""),
         "pageElements.text",
-        20000,
+        type === "SheetsPill" ? MAX_SHEET_TEXT_LENGTH : 20000,
         true
       );
+      if (type === "SheetsPill") {
+        validateSheetData(normalized.text);
+        normalized.title = requireString(item.title || "", "sheet.title", 80, true);
+      }
       normalized.language = requireString(item.language || "", "pageElements.language", 80, true);
     }
     return normalized;
@@ -445,6 +466,28 @@ function planRenameHeaderUpdates(pagesSs, payload, currentPageSheet) {
   return updates;
 }
 
+var MAX_SHEET_TEXT_LENGTH = 2000000;
+var SHEET_CHUNK_LENGTH = 40000;
+
+// A Sheets pill stores its whole grid as JSON text. Make sure it is the shape
+// the page expects before anything is written.
+function validateSheetData(text) {
+  var parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    invalidPayload("Sheet data must be valid JSON.");
+  }
+  if (
+    !parsed ||
+    Object.prototype.toString.call(parsed) !== "[object Object]" ||
+    !parsed.cells ||
+    Object.prototype.toString.call(parsed.cells) !== "[object Object]"
+  ) {
+    invalidPayload("Sheet data must contain a cells object.");
+  }
+}
+
 function quoteSheetName(name) {
   return "'" + String(name).replace(/'/g, "''") + "'";
 }
@@ -475,6 +518,17 @@ function buildPageRows(category, section, lesson, pageElements, version) {
         item.videoUrl || "",
         ""
       ]);
+    } else if (item.type === "SheetsPill") {
+      var sheetText = String(item.text || "");
+      var chunkCount = Math.max(1, Math.ceil(sheetText.length / SHEET_CHUNK_LENGTH));
+      for (var chunk = 0; chunk < chunkCount; chunk++) {
+        rows.push([
+          "SheetsPill",
+          sheetText.substring(chunk * SHEET_CHUNK_LENGTH, (chunk + 1) * SHEET_CHUNK_LENGTH),
+          (chunk + 1) + "/" + chunkCount,
+          chunk === 0 ? String(item.title || "") : ""
+        ]);
+      }
     } else {
       rows.push([item.type, item.text || "", item.language || "", ""]);
     }
@@ -733,7 +787,7 @@ function doPost(e) {
     if (!e || !e.postData || !e.postData.contents) {
       return createResponse("error", "No data received in request body.", "EMPTY_BODY");
     }
-    if (e.postData.contents.length > 1000000) {
+    if (e.postData.contents.length > 3000000) {
       return createResponse("error", "Request body is too large.", "PAYLOAD_TOO_LARGE");
     }
 
@@ -815,6 +869,35 @@ function doPost(e) {
       "INTERNAL_ERROR"
     );
   }
+}
+
+// One-time helper for the "Media" -> "Marketing" tab rename. Run it once from
+// the Apps Script editor: it renames the table-of-contents tab and updates the
+// category stored on each page, so existing Media content shows under Marketing.
+function migrateMediaToMarketing() {
+  var TOC_SPREADSHEET_ID = "1NwXxIsuYAzM44GuAqOUeq6vMNNY1HXX-MynpLd7smVQ";
+  var PAGES_SPREADSHEET_ID = "159ATSwxFAs1NEoyuTmnSrpDPMCHZUaQK8SMT1Ayf1X4";
+
+  var tocSs = SpreadsheetApp.openById(TOC_SPREADSHEET_ID);
+  var tocSheet = tocSs.getSheetByName("Media");
+  if (tocSheet && !tocSs.getSheetByName("Marketing")) {
+    tocSheet.setName("Marketing");
+    Logger.log("Renamed table-of-contents tab Media -> Marketing");
+  } else if (tocSheet) {
+    Logger.log("Both Media and Marketing tabs exist; left the Media tab alone.");
+  }
+
+  var pagesSs = SpreadsheetApp.openById(PAGES_SPREADSHEET_ID);
+  var updated = 0;
+  pagesSs.getSheets().forEach(function (sheet) {
+    if (sheet.getLastRow() < 1) return;
+    var category = String(sheet.getRange(1, 1).getValue()).trim().toLowerCase();
+    if (category === "media") {
+      sheet.getRange(1, 1).setValue("Marketing");
+      updated++;
+    }
+  });
+  Logger.log("Updated " + updated + " page(s) from Media to Marketing");
 }
 
 function replaceVideoUrl(oldFirebaseUrl, driveFileId) {
