@@ -688,7 +688,17 @@ function doPost(e) {
     );
   } catch (error) {
     console.error("Unhandled request failure", error);
-    return createResponse("error", "The request could not be completed.", "INTERNAL_ERROR");
+    var showDetail = false;
+    try {
+      showDetail = PropertiesService.getScriptProperties().getProperty("DEBUG_AUTH") === "true";
+    } catch (propError) {}
+    return createResponse(
+      "error",
+      showDetail
+        ? "The request could not be completed: " + (error && error.message ? error.message : String(error))
+        : "The request could not be completed.",
+      "INTERNAL_ERROR"
+    );
   }
 }
 
