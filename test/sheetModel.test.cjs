@@ -14,7 +14,7 @@ const read = (name) =>
 const source = read('formula.js') + '\n' + read('sheetModel.js');
 const context = { console, JSON, Math, Number, String, Object, Array, Map, Set, Date, RegExp, Error, Infinity };
 vm.createContext(context);
-vm.runInContext(source + '\nthis.api = { colName, cellName, makeAxis, emptySheet, starterSheet, parseSheet, applyStyle, applyBorders, resolveStyle, parseTSV, toTSV, pasteRows, readRange, setCellValue, clearRange, clearFormatting, usedExtent, setSize, normalizeSheet, insertLines, deleteLines, addLines, fillRange, sortBlock, findCells, replaceInCells };', context);
+vm.runInContext(source + '\nthis.api = { colName, cellName, makeAxis, emptySheet, starterSheet, parseSheet, applyStyle, applyBorders, resolveStyle, parseTSV, toTSV, pasteRows, readRange, setCellValue, clearRange, clearFormatting, usedExtent, setSize, normalizeSheet, insertLines, deleteLines, addLines, fillRange, sortBlock, findCells, replaceInCells, setDropdown, removeDropdown, updateList, dropdownList, DD_PRESETS };', context);
 const m = context.api;
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
@@ -264,4 +264,32 @@ test('find and replace', () => {
   const one = m.replaceInCells(d, 'robot', 'x', false, { r: 2, c: 1 });
   assert.equal(one.count, 1);
   assert.equal(one.data.cells['0,0'].v, 'Robot Reveal');
+});
+
+test('dropdown pills: apply, share a list, edit, remove', () => {
+  let d = m.emptySheet();
+  d.cells = { '0,0': { v: 'Done', b: 1 } };
+  const list = m.DD_PRESETS.status.list;
+  d = m.setDropdown(d, { r1: 0, r2: 2, c1: 0, c2: 0 }, list);
+  assert.equal(Object.keys(d.lists).length, 1);
+  assert.equal(d.cells['0,0'].v, 'Done');
+  assert.equal(d.cells['0,0'].b, 1);
+  assert.equal(d.cells['2,0'].dd, d.cells['0,0'].dd);
+  // same list again reuses the id
+  d = m.setDropdown(d, { r1: 0, r2: 0, c1: 2, c2: 2 }, list);
+  assert.equal(Object.keys(d.lists).length, 1);
+  // edit the shared list
+  const id = d.cells['0,0'].dd;
+  d = m.updateList(d, id, [{ t: 'Open', k: 'blue' }, { t: 'Shut', k: 'nope' }, { t: 'Open', k: 'red' }, { t: ' ', k: 'red' }]);
+  assert.equal(d.lists[id].length, 2);
+  assert.equal(d.lists[id][1].k, 'gray');
+  assert.equal(m.dropdownList(d, 1, 0).length, 2);
+  // clipped to the sheet, and removal prunes unused lists
+  const clipped = m.setDropdown(m.emptySheet(), { r1: 8, r2: 50, c1: 0, c2: 0 }, list);
+  assert.equal(Object.keys(clipped.cells).length, 2);
+  d = m.removeDropdown(d, { r1: 0, r2: 99, c1: 0, c2: 99 });
+  assert.equal(Object.keys(d.lists).length, 0);
+  assert.equal(d.cells['0,0'].dd, undefined);
+  assert.equal(d.cells['0,0'].v, 'Done');
+  assert.equal(m.normalizeSheet({ lists: { a: [{ t: 'x', k: 'bad' }], b: 'no' }, cells: {} }).lists.a[0].k, 'gray');
 });

@@ -76,6 +76,35 @@ const BorderIcon = () => (
   </svg>
 );
 
+// The coloured pill a dropdown cell shows.
+const DropdownPill = ({ text, option, caret, height, size, bold }) => {
+  const colors = option ? M.DD_COLORS[option.k] || M.DD_COLORS.gray : M.DD_COLORS.gray;
+  if (text === '') {
+    return caret ? <span style={{ marginLeft: 'auto', color: '#A0AEC0', fontSize: 11, paddingRight: 2 }}>▾</span> : null;
+  }
+  return (
+    <span
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        width: '100%',
+        boxSizing: 'border-box',
+        height,
+        padding: '0 8px 0 10px',
+        borderRadius: 999,
+        background: colors.bg,
+        color: colors.fg,
+        fontSize: size,
+        fontWeight: bold ? 700 : 500,
+        lineHeight: 1,
+        overflow: 'hidden',
+      }}>
+      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
+      {caret && <span style={{ marginLeft: 6, fontSize: 10, flexShrink: 0 }}>▼</span>}
+    </span>
+  );
+};
+
 const Menu = ({ children, style }) => (
   <div
     onMouseDown={(e) => e.stopPropagation()}
@@ -190,6 +219,8 @@ export default function SheetGrid({ text, onChange, editable = false }) {
   const [menu, setMenu] = useState(null);
   const [find, setFind] = useState(null); // { text, repl, matchCase, index } while the find bar is open
   const clip = useRef(null);
+  const [ddCell, setDdCell] = useState(null); // { r, c } while a dropdown cell's options are open
+  const [ddEditor, setDdEditor] = useState(null); // { id, list: [{ t, k }] } while editing option lists
   const [cursor, setCursor] = useState('cell');
   const [sizeDraft, setSizeDraft] = useState({ w: null, h: null });
 
@@ -392,6 +423,12 @@ export default function SheetGrid({ text, onChange, editable = false }) {
   const startEdit = (r, c, value, from = 'cell') => {
     if (!editable) return;
     const cell = dataRef.current.cells[M.key(r, c)];
+    if (from === 'cell' && M.dropdownList(dataRef.current, r, c)) {
+      // A dropdown cell opens its options instead of a text box.
+      setDdCell({ r, c });
+      setMenu('ddcell');
+      return;
+    }
     setEditing({ r, c, value: value !== undefined ? value : cell && cell.v ? cell.v : '', from });
     setMenu(null);
   };
@@ -529,6 +566,44 @@ export default function SheetGrid({ text, onChange, editable = false }) {
     if (range.kind === 'row' || range.kind === 'all') { block.c1 = 0; block.c2 = Math.max(0, lastUsed().col); }
     commit(M.sortBlock(dataRef.current, block, block.c1, ascending, evaluator.value));
     setMenu(null);
+  };
+
+  // --- dropdown pills ---------------------------------------------------------------
+  const ddBlock = () => {
+    const b = { r1: range.r1, r2: range.r2, c1: range.c1, c2: range.c2 };
+    if (range.kind === 'col' || range.kind === 'all') { b.r1 = 0; b.r2 = nr - 1; }
+    if (range.kind === 'row' || range.kind === 'all') { b.c1 = 0; b.c2 = nc - 1; }
+    return b;
+  };
+  const activeDdList = M.dropdownList(data, sel.ar, sel.ac);
+  const applyDropdown = (list) => {
+    if (!editable) return;
+    commit(M.setDropdown(dataRef.current, ddBlock(), list));
+    setMenu(null);
+  };
+  const removeDd = () => {
+    if (!editable) return;
+    commit(M.removeDropdown(dataRef.current, ddBlock()));
+    setMenu(null);
+  };
+  const openDdEditor = (existing) => {
+    const cell = dataRef.current.cells[M.key(sel.ar, sel.ac)];
+    const list = existing && activeDdList ? activeDdList : [{ t: '', k: 'blue' }, { t: '', k: 'yellow' }];
+    setDdEditor({ id: existing && cell ? cell.dd : null, list: list.map((o) => ({ ...o })) });
+    setMenu(null);
+  };
+  const saveDdEditor = () => {
+    if (!ddEditor) return;
+    const d = dataRef.current;
+    commit(ddEditor.id ? M.updateList(d, ddEditor.id, ddEditor.list) : M.setDropdown(d, ddBlock(), ddEditor.list));
+    setDdEditor(null);
+  };
+  const pickOption = (text) => {
+    if (!ddCell) return;
+    commit(M.setCellValue(dataRef.current, ddCell.r, ddCell.c, text));
+    setMenu(null);
+    setDdCell(null);
+    if (scrollerRef.current) scrollerRef.current.focus({ preventScroll: true });
   };
 
   // --- find & replace --------------------------------------------------------------
@@ -684,6 +759,15 @@ export default function SheetGrid({ text, onChange, editable = false }) {
     }
     if (e.shiftKey) setSel((cur) => ({ ...cur, kind: 'cell', fr: h.r, fc: h.c }));
     else setSel({ kind: 'cell', ar: h.r, ac: h.c, fr: h.r, fc: h.c });
+    if (editable && !e.shiftKey && M.dropdownList(dataRef.current, h.r, h.c)) {
+      const right = hw + dispX(h.c) + colAxis.sizeAt(h.c);
+      const wasActive = sel.kind === 'cell' && sel.ar === h.r && sel.ac === h.c && sel.fr === h.r && sel.fc === h.c;
+      if (wasActive || right - p.x <= 30) {
+        setDdCell({ r: h.r, c: h.c });
+        setMenu('ddcell');
+        e.stopPropagation(); // keep the click-away listener from closing it right away
+      }
+    }
     drag.current = { type: 'select', zone: 'cell' };
     attachDrag();
   };
@@ -888,6 +972,7 @@ export default function SheetGrid({ text, onChange, editable = false }) {
     const st = M.resolveStyle(data, r, c, used);
     const raw = data.cells[M.key(r, c)];
     const value = evaluator.display(r, c);
+    const ddList = raw && raw.dd && data.lists ? data.lists[raw.dd] : null;
     const isNum = evaluator.isNumber(r, c);
     const isErr = F.isError(evaluator.value(r, c));
     const box = cellBox(r, c);
@@ -934,7 +1019,17 @@ export default function SheetGrid({ text, onChange, editable = false }) {
           userSelect: 'none',
           textAlign: side === 'c' ? 'center' : side === 'r' ? 'right' : 'left',
         }}>
-        {value !== '' && (
+        {ddList && (
+          <DropdownPill
+            text={value}
+            option={ddList.find((o) => o.t === value)}
+            caret={editable || value !== ''}
+            height={Math.min(box.height - 6, 24)}
+            size={st.fs || 13}
+            bold={Boolean(st.b)}
+          />
+        )}
+        {!ddList && value !== '' && (
           <span
             style={{
               overflow: 'hidden',
@@ -1252,6 +1347,30 @@ export default function SheetGrid({ text, onChange, editable = false }) {
           </Menu>
         )}
       </span>
+      <span style={{ position: 'relative' }}>
+        <button
+          type="button"
+          style={btn(false)}
+          title="Turn cells into dropdown pills"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => setMenu(menu === 'dd' ? null : 'dd')}>
+          Dropdown ▾
+        </button>
+        {menu === 'dd' && (
+          <Menu style={{ minWidth: 300 }}>
+            {Object.keys(M.DD_PRESETS).map((id) => (
+              <MenuItem key={id} onClick={() => applyDropdown(M.DD_PRESETS[id].list)}>
+                {M.DD_PRESETS[id].list.slice(0, 4).map((o) => (
+                  <span key={o.t} style={{ display: 'inline-block', padding: '2px 8px', marginRight: 4, borderRadius: 999, background: M.DD_COLORS[o.k].bg, color: M.DD_COLORS[o.k].fg, fontSize: 12 }}>{o.t}</span>
+                ))}
+              </MenuItem>
+            ))}
+            <MenuItem onClick={() => openDdEditor(false)}>Custom list…</MenuItem>
+            {activeDdList && <MenuItem onClick={() => openDdEditor(true)}>Edit this dropdown…</MenuItem>}
+            {activeDdList && <MenuItem onClick={removeDd}>Remove dropdown from selection</MenuItem>}
+          </Menu>
+        )}
+      </span>
       <button type="button" style={btn(Boolean(find))} title="Find and replace (Ctrl+F)" onClick={() => setFind(find ? null : { text: '', repl: '', matchCase: false, index: 0 })}>Find</button>
       <button type="button" style={btn(false)} title="Remove formatting from the selection" onClick={() => commit(M.clearFormatting(dataRef.current, selOps()))}>Clear format</button>
     </div>
@@ -1314,6 +1433,77 @@ export default function SheetGrid({ text, onChange, editable = false }) {
     </div>
   );
 
+  const ddEditorBar = ddEditor && (
+    <div style={{ margin: '0 8px 8px', padding: 10, border: `2px solid ${INK}`, borderRadius: 10, background: '#F7FAFC' }}>
+      <div style={{ fontFamily: 'Chewy, Arial', fontSize: 14, color: INK, marginBottom: 8 }}>
+        {ddEditor.id ? 'Edit dropdown options' : 'New dropdown for the selected cells'}
+      </div>
+      {ddEditor.list.map((o, i) => (
+        <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ width: 18, height: 18, borderRadius: 999, background: (M.DD_COLORS[o.k] || M.DD_COLORS.gray).bg, border: `1px solid ${(M.DD_COLORS[o.k] || M.DD_COLORS.gray).fg}`, flexShrink: 0 }} />
+          <input
+            type="text"
+            value={o.t}
+            placeholder={`Option ${i + 1}`}
+            onChange={(e) => setDdEditor({ ...ddEditor, list: ddEditor.list.map((x, j) => (j === i ? { ...x, t: e.target.value } : x)) })}
+            style={{ ...field, flex: 1, minWidth: 0 }}
+          />
+          <select
+            value={o.k}
+            onChange={(e) => setDdEditor({ ...ddEditor, list: ddEditor.list.map((x, j) => (j === i ? { ...x, k: e.target.value } : x)) })}
+            style={{ ...field, width: 100 }}>
+            {M.DD_COLOR_ORDER.map((k) => (
+              <option key={k} value={k}>{M.DD_COLORS[k].label}</option>
+            ))}
+          </select>
+          <button type="button" style={btn(false)} title="Remove option" onClick={() => setDdEditor({ ...ddEditor, list: ddEditor.list.filter((x, j) => j !== i) })}>✕</button>
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <button type="button" style={btn(false)} onClick={() => setDdEditor({ ...ddEditor, list: [...ddEditor.list, { t: '', k: M.DD_COLOR_ORDER[ddEditor.list.length % M.DD_COLOR_ORDER.length] }] })}>+ Add option</button>
+        <button type="button" style={btn(true)} onClick={saveDdEditor}>{ddEditor.id ? 'Save' : 'Apply'}</button>
+        <button type="button" style={btn(false)} onClick={() => setDdEditor(null)}>Cancel</button>
+      </div>
+    </div>
+  );
+
+  const ddPopup = menu === 'ddcell' && ddCell && M.dropdownList(data, ddCell.r, ddCell.c) && (() => {
+    const list = M.dropdownList(data, ddCell.r, ddCell.c);
+    const box = cellBox(ddCell.r, ddCell.c);
+    const current = evaluator.display(ddCell.r, ddCell.c);
+    return (
+      <div
+        onMouseDown={(e) => e.stopPropagation()}
+        style={{
+          position: 'absolute',
+          left: Math.min(hw + box.left, Math.max(0, view.w - 190)),
+          top: Math.min(hh + box.top + box.height + 2, Math.max(0, view.h - 40 - list.length * 30)),
+          zIndex: 40,
+          minWidth: Math.max(150, box.width),
+          background: '#FFFFFF',
+          border: `2px solid ${INK}`,
+          borderBottomWidth: 4,
+          borderRadius: 10,
+          padding: 6,
+          boxShadow: '0 6px 18px rgba(0,0,0,0.22)',
+        }}>
+        {list.map((o) => (
+          <div
+            key={o.t}
+            role="option"
+            aria-selected={o.t === current}
+            onClick={() => pickOption(o.t)}
+            style={{ padding: '3px 4px', cursor: 'pointer', borderRadius: 6, background: o.t === current ? '#EDF2F7' : 'transparent' }}>
+            <span style={{ display: 'inline-block', padding: '3px 12px', borderRadius: 999, background: M.DD_COLORS[o.k].bg, color: M.DD_COLORS[o.k].fg, fontSize: 13, fontFamily: 'Arial, sans-serif' }}>{o.t}</span>
+          </div>
+        ))}
+        {current !== '' && (
+          <div role="option" onClick={() => pickOption('')} style={{ padding: '5px 8px', cursor: 'pointer', fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#4A5568' }}>Clear</div>
+        )}
+      </div>
+    );
+  })();
+
   const footer = editable && (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', paddingTop: 8 }}>
       <button type="button" style={btn(false)} onClick={() => addMore('row', 1)} title="Add a row at the bottom">+ Row</button>
@@ -1331,6 +1521,7 @@ export default function SheetGrid({ text, onChange, editable = false }) {
       {toolbar}
       {formulaBar}
       {findBar}
+      {ddEditorBar}
       <div
         ref={rootRef}
         style={{
@@ -1427,6 +1618,7 @@ export default function SheetGrid({ text, onChange, editable = false }) {
           <div style={{ width: spacerW, height: spacerH, pointerEvents: 'none' }} />
         </div>
 
+        {ddPopup}
         {editBox && editStyle && (
           <input
             ref={editRef}

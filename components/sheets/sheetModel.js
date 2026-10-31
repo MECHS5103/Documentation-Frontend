@@ -10,6 +10,8 @@ import { isFormula, shiftFormula, remapFormula, moveRowRefs } from './formula';
 //     colS: { col: {style} }, rowS: { row: {style} }, // whole-column / whole-row formatting
 //     base: {style},                                  // whole-sheet formatting
 //     nr, nc: number of rows / columns the sheet has
+//     lists: { id: [{ t: 'option text', k: 'colorKey' }] }   // dropdown (pill) option lists
+//     a cell with a dropdown carries dd: 'id' (its value is one of the option texts)
 //     opts: { grid, headers, headerRow, banded, freezeR, freezeC, dw, dh }
 //   }
 // Only cells that hold something are stored.
@@ -135,6 +137,47 @@ export const defaultOpts = () => ({
   dh: DEFAULT_ROW_H,
 });
 
+// Colours for dropdown pills.
+export const DD_COLORS = {
+  blue: { label: 'Blue', bg: '#A8DCFF', fg: '#1D4F91' },
+  red: { label: 'Red', bg: '#FF9E92', fg: '#7A1D12' },
+  yellow: { label: 'Yellow', bg: '#FFF08A', fg: '#7A5200' },
+  green: { label: 'Green', bg: '#B7EDB4', fg: '#1E6B2A' },
+  orange: { label: 'Orange', bg: '#FFCF99', fg: '#8A4B00' },
+  purple: { label: 'Purple', bg: '#D9C8FF', fg: '#4B2C96' },
+  pink: { label: 'Pink', bg: '#FFC4DC', fg: '#8A1F52' },
+  teal: { label: 'Teal', bg: '#A8EDE3', fg: '#13675D' },
+  gray: { label: 'Gray', bg: '#E2E8F0', fg: '#2D3748' },
+};
+export const DD_COLOR_ORDER = ['blue', 'red', 'yellow', 'green', 'orange', 'purple', 'pink', 'teal', 'gray'];
+
+export const DD_PRESETS = {
+  status: {
+    label: 'Status  (Not started / In progress / Blocked / Done)',
+    list: [
+      { t: 'Not started', k: 'blue' },
+      { t: 'In progress', k: 'yellow' },
+      { t: 'Blocked', k: 'red' },
+      { t: 'Done', k: 'green' },
+    ],
+  },
+  priority: {
+    label: 'Priority  (Low / Medium / High)',
+    list: [
+      { t: 'Low', k: 'green' },
+      { t: 'Medium', k: 'yellow' },
+      { t: 'High', k: 'red' },
+    ],
+  },
+  yesno: {
+    label: 'Yes / No',
+    list: [
+      { t: 'Yes', k: 'green' },
+      { t: 'No', k: 'red' },
+    ],
+  },
+};
+
 export const DEFAULT_ROWS = 10;
 export const DEFAULT_COLS = 10;
 export const MAX_ROWS = 100000;
@@ -144,6 +187,7 @@ export const emptySheet = () => ({
   v: 1,
   nr: DEFAULT_ROWS,
   nc: DEFAULT_COLS,
+  lists: {},
   theme: 'docs',
   cells: {},
   colW: {},
@@ -162,7 +206,7 @@ export const starterSheet = () => {
   sheet.opts.freezeR = 1;
   const rows = [
     ['Campaign', 'Channel', 'Budget', 'Status'],
-    ['Spring Sponsor Drive', 'Email', '1200', 'Planned'],
+    ['Spring Sponsor Drive', 'Email', '1200', 'Not started'],
     ['Robot Reveal', 'Instagram', '300', 'In progress'],
     ['Build Season Recap', 'YouTube', '150', 'Done'],
     ['Total', '', '=SUM(C2:C4)', ''],
@@ -173,12 +217,28 @@ export const starterSheet = () => {
       sheet.cells[`${r},${c}`] = c === 2 && r > 0 ? { v: value, nf: 'cur', ...(r === 4 ? { b: 1 } : {}) } : { v: value, ...(r === 4 ? { b: 1 } : {}) };
     })
   );
-  sheet.colW = { 0: 170, 1: 120, 3: 120 };
-  return sheet;
+  sheet.colW = { 0: 170, 1: 120, 3: 130 };
+  return setDropdown(sheet, { r1: 1, r2: 3, c1: 3, c2: 3 }, DD_PRESETS.status.list);
 };
 
 const isPlainObject = (value) =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const cleanLists = (raw) => {
+  const out = {};
+  if (!isPlainObject(raw)) return out;
+  Object.keys(raw)
+    .slice(0, 60)
+    .forEach((id) => {
+      if (!Array.isArray(raw[id])) return;
+      const list = raw[id]
+        .slice(0, 60)
+        .filter((o) => o && typeof o.t === 'string' && o.t.trim() !== '')
+        .map((o) => ({ t: o.t.slice(0, 80), k: DD_COLORS[o.k] ? o.k : 'gray' }));
+      if (list.length) out[id] = list;
+    });
+  return out;
+};
 
 export const normalizeSheet = (raw) => {
   const base = emptySheet();
@@ -192,6 +252,7 @@ export const normalizeSheet = (raw) => {
   };
   return {
     v: 1,
+    lists: cleanLists(raw.lists),
     nr: dim(raw.nr, filled.row + 1, DEFAULT_ROWS, MAX_ROWS),
     nc: dim(raw.nc, filled.col + 1, DEFAULT_COLS, MAX_COLS),
     theme: THEMES[raw.theme] ? raw.theme : base.theme,
@@ -707,6 +768,75 @@ export const deleteLines = (data, axis, first, last) => {
     [rowAxis ? 'rowS' : 'colS']: remapIndexMap(data[rowAxis ? 'rowS' : 'colS'], move),
     opts,
   };
+};
+
+// --- Dropdown pills --------------------------------------------------------------
+
+const sameList = (a, b) => a.length === b.length && a.every((o, i) => o.t === b[i].t && o.k === b[i].k);
+
+const cleanList = (list) =>
+  list
+    .map((o) => ({ t: String(o.t || '').trim().slice(0, 80), k: DD_COLORS[o.k] ? o.k : 'gray' }))
+    .filter((o, i, all) => o.t !== '' && all.findIndex((x) => x.t === o.t) === i)
+    .slice(0, 60);
+
+const prune = (data) => {
+  const inUse = new Set();
+  Object.keys(data.cells).forEach((k) => {
+    if (data.cells[k].dd) inUse.add(data.cells[k].dd);
+  });
+  const lists = {};
+  Object.keys(data.lists || {}).forEach((id) => {
+    if (inUse.has(id)) lists[id] = data.lists[id];
+  });
+  return { ...data, lists };
+};
+
+export const dropdownList = (data, r, c) => {
+  const cell = data.cells[key(r, c)];
+  return cell && cell.dd && data.lists && data.lists[cell.dd] ? data.lists[cell.dd] : null;
+};
+
+// Put a dropdown with `list` on every cell of the block (clipped to the sheet).
+export const setDropdown = (data, block, list) => {
+  const clean = cleanList(list);
+  if (!clean.length) return data;
+  const lists = { ...(data.lists || {}) };
+  let id = Object.keys(lists).find((k) => sameList(lists[k], clean));
+  if (!id) {
+    let n = Object.keys(lists).length + 1;
+    while (lists[`l${n}`]) n += 1;
+    id = `l${n}`;
+    lists[id] = clean;
+  }
+  const cells = { ...data.cells };
+  for (let r = Math.max(0, block.r1); r <= Math.min(block.r2, data.nr - 1); r += 1) {
+    for (let c = Math.max(0, block.c1); c <= Math.min(block.c2, data.nc - 1); c += 1) {
+      const k = key(r, c);
+      cells[k] = { ...(cells[k] || {}), dd: id };
+    }
+  }
+  return prune({ ...data, cells, lists });
+};
+
+export const removeDropdown = (data, block) => {
+  const cells = { ...data.cells };
+  Object.keys(cells).forEach((k) => {
+    const [r, c] = parseKey(k);
+    if (r < block.r1 || r > block.r2 || c < block.c1 || c > block.c2 || !cells[k].dd) return;
+    const cell = { ...cells[k] };
+    delete cell.dd;
+    if (Object.keys(cell).length) cells[k] = cell;
+    else delete cells[k];
+  });
+  return prune({ ...data, cells });
+};
+
+// Change the options of an existing list for every cell that uses it.
+export const updateList = (data, id, list) => {
+  const clean = cleanList(list);
+  if (!clean.length || !data.lists || !data.lists[id]) return data;
+  return { ...data, lists: { ...data.lists, [id]: clean } };
 };
 
 // --- Fill, sort ----------------------------------------------------------------
