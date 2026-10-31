@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as M from './sheetModel';
+import * as F from './formula';
 
 const HEADER_W = 46;
 const HEADER_H = 24;
@@ -186,8 +187,9 @@ export default function SheetGrid({ text, onChange, editable = false }) {
   const [editing, setEditing] = useState(null); // { r, c, value, from: 'cell' | 'bar' }
   const [scroll, setScroll] = useState({ x: 0, y: 0 });
   const [view, setView] = useState({ w: 700, h: 420 });
-  const [extent, setExtent] = useState({ w: 0, h: 0 });
   const [menu, setMenu] = useState(null);
+  const [find, setFind] = useState(null); // { text, repl, matchCase, index } while the find bar is open
+  const clip = useRef(null);
   const [cursor, setCursor] = useState('cell');
   const [sizeDraft, setSizeDraft] = useState({ w: null, h: null });
 
@@ -249,6 +251,8 @@ export default function SheetGrid({ text, onChange, editable = false }) {
   // ------------------------------------------------------------- geometry --
   const theme = M.THEMES[data.theme] || M.THEMES.docs;
   const opts = data.opts;
+  const nr = data.nr;
+  const nc = data.nc;
   const hw = opts.headers ? HEADER_W : 0;
   const hh = opts.headers ? HEADER_H : 0;
   const colAxis = useMemo(() => M.makeAxis(opts.dw || M.DEFAULT_COL_W, data.colW), [opts.dw, data.colW]);
@@ -258,29 +262,20 @@ export default function SheetGrid({ text, onChange, editable = false }) {
 
   // Frozen panes can take at most most of the view, or nothing would scroll.
   const freezeC = useMemo(() => {
-    let n = clamp(opts.freezeC || 0, 0, 30);
+    let n = clamp(opts.freezeC || 0, 0, Math.min(30, nc - 1));
     while (n > 0 && colAxis.offset(n) > contentW * 0.6) n -= 1;
     return n;
-  }, [opts.freezeC, colAxis, contentW]);
+  }, [opts.freezeC, colAxis, contentW, nc]);
   const freezeR = useMemo(() => {
-    let n = clamp(opts.freezeR || 0, 0, 50);
+    let n = clamp(opts.freezeR || 0, 0, Math.min(50, nr - 1));
     while (n > 0 && rowAxis.offset(n) > contentH * 0.6) n -= 1;
     return n;
-  }, [opts.freezeR, rowAxis, contentH]);
+  }, [opts.freezeR, rowAxis, contentH, nr]);
   const frozenW = colAxis.offset(freezeC);
   const frozenH = rowAxis.offset(freezeR);
 
-  // The scrollable area always reaches well past what has been seen, and keeps
-  // growing as you scroll toward its edge, so there is no last row or column.
-  useLayoutEffect(() => {
-    const filled = M.usedExtent(data);
-    const needW = colAxis.offset(Math.max(filled.col + 1, 0) + 3) + contentW;
-    const needH = rowAxis.offset(Math.max(filled.row + 1, 0) + 5) + contentH;
-    setExtent((e) => ({
-      w: Math.max(e.w, needW, contentW * 3),
-      h: Math.max(e.h, needH, contentH * 3),
-    }));
-  }, [data.cells, colAxis, rowAxis, contentW, contentH]); // eslint-disable-line react-hooks/exhaustive-deps
+  const totalW = colAxis.offset(nc);
+  const totalH = rowAxis.offset(nr);
 
   useLayoutEffect(() => {
     const el = rootRef.current;
@@ -307,12 +302,6 @@ export default function SheetGrid({ text, onChange, editable = false }) {
     const x = el.scrollLeft;
     const y = el.scrollTop;
     setScroll({ x, y });
-    setExtent((cur) => {
-      let { w, h } = cur;
-      if (x + contentW > w - contentW) w += contentW * 2;
-      if (y + contentH > h - contentH) h += contentH * 2;
-      return w === cur.w && h === cur.h ? cur : { w, h };
-    });
   };
 
   const dispX = (c) => (c < freezeC ? colAxis.offset(c) : colAxis.offset(c) - scroll.x);
@@ -322,25 +311,34 @@ export default function SheetGrid({ text, onChange, editable = false }) {
     const list = [];
     for (let c = 0; c < freezeC; c += 1) list.push(c);
     const first = Math.max(freezeC, colAxis.indexAt(scroll.x + frozenW));
-    const last = colAxis.indexAt(scroll.x + contentW);
+    const last = Math.min(nc - 1, colAxis.indexAt(scroll.x + contentW));
     for (let c = first; c <= last; c += 1) list.push(c);
     return list;
-  }, [freezeC, colAxis, scroll.x, frozenW, contentW]);
+  }, [freezeC, colAxis, scroll.x, frozenW, contentW, nc]);
   const visibleRows = useMemo(() => {
     const list = [];
     for (let r = 0; r < freezeR; r += 1) list.push(r);
     const first = Math.max(freezeR, rowAxis.indexAt(scroll.y + frozenH));
-    const last = rowAxis.indexAt(scroll.y + contentH);
+    const last = Math.min(nr - 1, rowAxis.indexAt(scroll.y + contentH));
     for (let r = first; r <= last; r += 1) list.push(r);
     return list;
-  }, [freezeR, rowAxis, scroll.y, frozenH, contentH]);
+  }, [freezeR, rowAxis, scroll.y, frozenH, contentH, nr]);
 
   // ------------------------------------------------------------ selection --
   const range = useMemo(() => {
     const n = M.normalizeRange({ r: sel.ar, c: sel.ac }, { r: sel.fr, c: sel.fc });
     return { kind: sel.kind, ...n };
   }, [sel]);
-  const used = useMemo(() => M.usedExtent(data), [data.cells]); // eslint-disable-line react-hooks/exhaustive-deps
+  const used = useMemo(() => ({ row: nr - 1, col: nc - 1 }), [nr, nc]);
+  const evaluator = useMemo(
+    () =>
+      F.createEvaluator(data.cells, {
+        rows: nr,
+        cols: nc,
+        nfOf: (r, c) => M.resolveStyle(data, r, c, used).nf,
+      }),
+    [data, nr, nc, used]
+  );
   const activeStyle = M.resolveStyle(data, sel.ar, sel.ac, used);
   const activeCell = data.cells[M.key(sel.ar, sel.ac)];
   const activeValue = activeCell && activeCell.v ? activeCell.v : '';
@@ -372,10 +370,6 @@ export default function SheetGrid({ text, onChange, editable = false }) {
       else if (bottom > el.scrollTop + contentH) target.y = bottom - contentH;
     }
     if (target.x !== undefined || target.y !== undefined) {
-      setExtent((e) => ({
-        w: Math.max(e.w, (target.x || 0) + contentW * 3),
-        h: Math.max(e.h, (target.y || 0) + contentH * 3),
-      }));
       pendingScroll.current = target;
       // Applying right away covers moves that stay inside the current extent.
       if (target.x !== undefined) el.scrollLeft = target.x;
@@ -384,8 +378,8 @@ export default function SheetGrid({ text, onChange, editable = false }) {
   };
 
   const moveActive = (dr, dc, extend) => {
-    const r = Math.max(0, (extend ? sel.fr : sel.ar) + dr);
-    const c = Math.max(0, (extend ? sel.fc : sel.ac) + dc);
+    const r = clamp((extend ? sel.fr : sel.ar) + dr, 0, nr - 1);
+    const c = clamp((extend ? sel.fc : sel.ac) + dc, 0, nc - 1);
     if (extend) {
       setSel({ ...sel, kind: sel.kind === 'all' ? 'cell' : sel.kind, fr: r, fc: c });
     } else {
@@ -412,8 +406,8 @@ export default function SheetGrid({ text, onChange, editable = false }) {
     }
     setEditing(null);
     if (move) {
-      const r = Math.max(0, e.r + move[0]);
-      const c = Math.max(0, e.c + move[1]);
+      const r = clamp(e.r + move[0], 0, nr - 1);
+      const c = clamp(e.c + move[1], 0, nc - 1);
       setSel({ kind: 'cell', ar: r, ac: c, fr: r, fc: c });
       ensureVisible(r, c);
     }
@@ -492,6 +486,76 @@ export default function SheetGrid({ text, onChange, editable = false }) {
     return `${n} ${onRows ? 'row' : 'column'}${n === 1 ? '' : 's'}`;
   };
 
+  // --- add rows / columns, fill, sort, number format ----------------------------
+  const addMore = (axis, count) => {
+    if (!editable) return;
+    const d = dataRef.current;
+    if (M.roomFor(d, axis) < 1) return;
+    commit(M.addLines(d, axis, count));
+    setMenu(null);
+  };
+
+  const fill = (direction) => {
+    if (!editable) return;
+    const r = { ...range };
+    if (direction === 'down' && r.r1 === r.r2 && r.r1 + 1 < nr) {
+      r.r2 = r.r1 + 1; // a single cell fills into the one below, like a spreadsheet
+    }
+    if (direction === 'right' && r.c1 === r.c2 && r.c1 + 1 < nc) r.c2 = r.c1 + 1;
+    if (r.kind === 'col' || r.kind === 'all') { r.r1 = 0; r.r2 = nr - 1; }
+    if (r.kind === 'row' || r.kind === 'all') { r.c1 = 0; r.c2 = nc - 1; }
+    commit(M.fillRange(dataRef.current, r, direction));
+    setSel({ kind: 'cell', ar: r.r1, ac: r.c1, fr: r.r2, fc: r.c2 });
+    setMenu(null);
+  };
+
+  const lastUsed = () => M.usedExtent(dataRef.current);
+
+  const sortSheet = (ascending) => {
+    if (!editable) return;
+    const u = lastUsed();
+    const start = Math.max(freezeR, opts.headerRow ? 1 : 0);
+    if (u.row < start) return;
+    commit(M.sortBlock(dataRef.current, { r1: start, r2: u.row, c1: 0, c2: Math.max(u.col, sel.ac) }, sel.ac, ascending, evaluator.value));
+    setMenu(null);
+  };
+  const sortSelection = (ascending) => {
+    if (!editable) return;
+    const block = { r1: range.r1, r2: range.r2, c1: range.c1, c2: range.c2 };
+    if (range.kind === 'col' || range.kind === 'all') {
+      block.r1 = Math.max(freezeR, opts.headerRow ? 1 : 0);
+      block.r2 = Math.max(block.r1, lastUsed().row);
+    }
+    if (range.kind === 'row' || range.kind === 'all') { block.c1 = 0; block.c2 = Math.max(0, lastUsed().col); }
+    commit(M.sortBlock(dataRef.current, block, block.c1, ascending, evaluator.value));
+    setMenu(null);
+  };
+
+  // --- find & replace --------------------------------------------------------------
+  const matches = useMemo(
+    () => (find ? M.findCells(data, find.text, find.matchCase) : []),
+    [find && find.text, find && find.matchCase, data] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const goToMatch = (index) => {
+    if (!matches.length) return;
+    const i = ((index % matches.length) + matches.length) % matches.length;
+    setFind((f) => ({ ...f, index: i }));
+    const { r, c } = matches[i];
+    setSel({ kind: 'cell', ar: r, ac: c, fr: r, fc: c });
+    ensureVisible(r, c);
+  };
+  const replaceOne = () => {
+    if (!editable || !find || !matches.length) return;
+    const i = Math.min(find.index || 0, matches.length - 1);
+    const out = M.replaceInCells(dataRef.current, find.text, find.repl || '', find.matchCase, matches[i]);
+    if (out.count) commit(out.data);
+  };
+  const replaceAll = () => {
+    if (!editable || !find || !matches.length) return;
+    const out = M.replaceInCells(dataRef.current, find.text, find.repl || '', find.matchCase);
+    if (out.count) commit(out.data);
+  };
+
   const applySize = (axis, value) => {
     const n = Number(value);
     if (!Number.isFinite(n) || n < M.MIN_SIZE) return;
@@ -523,11 +587,11 @@ export default function SheetGrid({ text, onChange, editable = false }) {
 
   const colAtX = (x) => {
     const cx = x - hw;
-    return colAxis.indexAt(cx < frozenW ? Math.max(0, cx) : cx + scroll.x);
+    return Math.min(nc - 1, colAxis.indexAt(cx < frozenW ? Math.max(0, cx) : cx + scroll.x));
   };
   const rowAtY = (y) => {
     const cy = y - hh;
-    return rowAxis.indexAt(cy < frozenH ? Math.max(0, cy) : cy + scroll.y);
+    return Math.min(nr - 1, rowAxis.indexAt(cy < frozenH ? Math.max(0, cy) : cy + scroll.y));
   };
 
   const hitTest = (x, y) => {
@@ -569,6 +633,18 @@ export default function SheetGrid({ text, onChange, editable = false }) {
     const h = hitTest(p.x, p.y);
     if (h.zone === 'scrollbar') return;
     e.preventDefault();
+    if (
+      editing &&
+      h.zone === 'cell' &&
+      F.isFormula(editing.value) &&
+      /[=(,+\-*/&^<>:]$/.test(editing.value) &&
+      !(h.r === editing.r && h.c === editing.c)
+    ) {
+      // While typing a formula, clicking a cell puts its name in the formula.
+      setEditing({ ...editing, value: editing.value + M.cellName(h.r, h.c) });
+      if (editing.from === 'cell' && editRef.current) editRef.current.focus();
+      return;
+    }
     if (scrollerRef.current) scrollerRef.current.focus({ preventScroll: true });
     setMenu(null);
 
@@ -697,6 +773,16 @@ export default function SheetGrid({ text, onChange, editable = false }) {
         setSel({ kind: 'all', ar: 0, ac: 0, fr: 0, fc: 0 });
         return;
       }
+      if (lower === 'f' || lower === 'h') {
+        e.preventDefault();
+        setFind((f) => f || { text: '', repl: '', matchCase: false, index: 0 });
+        return;
+      }
+      if (editable && (lower === 'd' || lower === 'r')) {
+        e.preventDefault();
+        fill(lower === 'd' ? 'down' : 'right');
+        return;
+      }
       if (editable && (lower === 'b' || lower === 'i' || lower === 'u')) {
         e.preventDefault();
         toggle(lower);
@@ -744,7 +830,10 @@ export default function SheetGrid({ text, onChange, editable = false }) {
 
   const onCopy = (e) => {
     if (editing) return;
-    e.clipboardData.setData('text/plain', M.toTSV(selectionRows()));
+    const rowsOut = selectionRows();
+    const text = M.toTSV(rowsOut);
+    clip.current = { text, r: range.kind === 'row' || range.kind === 'all' ? 0 : range.r1, c: range.kind === 'col' || range.kind === 'all' ? 0 : range.c1 };
+    e.clipboardData.setData('text/plain', text);
     e.preventDefault();
   };
   const onCut = (e) => {
@@ -757,18 +846,29 @@ export default function SheetGrid({ text, onChange, editable = false }) {
     const pasted = e.clipboardData.getData('text/plain');
     if (!pasted) return;
     e.preventDefault();
-    const rowsIn = M.parseTSV(pasted);
+    let rowsIn = M.parseTSV(pasted);
     if (!rowsIn.length) return;
+    // Pasting what was copied from this sheet moves formulas along with it.
+    if (clip.current && clip.current.text === pasted) {
+      const dr = range.r1 - clip.current.r;
+      const dc = range.c1 - clip.current.c;
+      rowsIn = rowsIn.map((row) => row.map((v) => (F.isFormula(v) ? F.shiftFormula(v, dr, dc) : v)));
+    }
     const single = rowsIn.length === 1 && rowsIn[0].length === 1;
+    let base = dataRef.current;
+    const needR = range.r1 + rowsIn.length - base.nr;
+    const needC = range.c1 + Math.max(...rowsIn.map((row) => row.length)) - base.nc;
+    if (needR > 0) base = M.addLines(base, 'row', needR);
+    if (needC > 0) base = M.addLines(base, 'col', needC);
     let next;
     if (single && sel.kind === 'cell' && (range.r2 > range.r1 || range.c2 > range.c1)) {
       const filled = [];
       for (let r = range.r1; r <= range.r2; r += 1) {
         filled.push(new Array(range.c2 - range.c1 + 1).fill(rowsIn[0][0]));
       }
-      next = M.pasteRows(dataRef.current, range.r1, range.c1, filled);
+      next = M.pasteRows(base, range.r1, range.c1, filled);
     } else {
-      next = M.pasteRows(dataRef.current, range.r1, range.c1, rowsIn);
+      next = M.pasteRows(base, range.r1, range.c1, rowsIn);
     }
     commit(next);
     const endR = range.r1 + rowsIn.length - 1;
@@ -787,7 +887,9 @@ export default function SheetGrid({ text, onChange, editable = false }) {
   const renderCell = (r, c) => {
     const st = M.resolveStyle(data, r, c, used);
     const raw = data.cells[M.key(r, c)];
-    const value = raw && raw.v ? raw.v : '';
+    const value = evaluator.display(r, c);
+    const isNum = evaluator.isNumber(r, c);
+    const isErr = F.isError(evaluator.value(r, c));
     const box = cellBox(r, c);
     const frozen = r < freezeR || c < freezeC;
     const both = r < freezeR && c < freezeC;
@@ -799,7 +901,8 @@ export default function SheetGrid({ text, onChange, editable = false }) {
     const heavy = `2px solid ${theme.border}`;
     const rightHeavy = M.sideOn(raw, 'r');
     const bottomHeavy = M.sideOn(raw, 'b');
-    const align = st.a === 'c' ? 'center' : st.a === 'r' ? 'flex-end' : 'flex-start';
+    const side = st.a || (isNum ? 'r' : 'l');
+    const align = side === 'c' ? 'center' : side === 'r' ? 'flex-end' : 'flex-start';
     const decoration = [st.u ? 'underline' : '', st.s ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
     return (
       <div
@@ -812,7 +915,7 @@ export default function SheetGrid({ text, onChange, editable = false }) {
           height: box.height,
           boxSizing: 'border-box',
           background: st.bg || theme.bg,
-          color: st.c || theme.fg,
+          color: isErr ? '#C53030' : st.c || theme.fg,
           fontFamily: theme.font,
           fontSize: st.fs || 13,
           fontWeight: st.b ? 700 : 400,
@@ -829,7 +932,7 @@ export default function SheetGrid({ text, onChange, editable = false }) {
           borderLeft: draw('l', left, 'r') ? heavy : undefined,
           zIndex: both ? 3 : frozen ? 2 : 1,
           userSelect: 'none',
-          textAlign: st.a === 'c' ? 'center' : st.a === 'r' ? 'right' : 'left',
+          textAlign: side === 'c' ? 'center' : side === 'r' ? 'right' : 'left',
         }}>
         {value !== '' && (
           <span
@@ -877,8 +980,8 @@ export default function SheetGrid({ text, onChange, editable = false }) {
   const multi = range.r2 > range.r1 || range.c2 > range.c1 || sel.kind !== 'cell';
 
   const onGridHeight = opts.h || 420;
-  const spacerW = extent.w + hw;
-  const spacerH = extent.h + hh;
+  const spacerW = totalW + hw;
+  const spacerH = totalH + hh;
 
   const hdrFont = theme.axisFont;
   const colHeaders = visibleCols.map((c) => {
@@ -1115,9 +1218,41 @@ export default function SheetGrid({ text, onChange, editable = false }) {
             <MenuItem onClick={() => lineEdit('insAftercol')}>Insert {noun(false)} right</MenuItem>
             <MenuItem onClick={() => lineEdit('delrow')}>Delete {noun(true)}</MenuItem>
             <MenuItem onClick={() => lineEdit('delcol')}>Delete {noun(false)}</MenuItem>
+            <MenuItem onClick={() => addMore('row', 10)}>Add 10 rows at the bottom</MenuItem>
+            <MenuItem onClick={() => addMore('col', 10)}>Add 10 columns at the right</MenuItem>
           </Menu>
         )}
       </span>
+      <select
+        value={activeStyle.nf || 'auto'}
+        onChange={(e) => apply({ nf: e.target.value === 'auto' ? null : e.target.value })}
+        title="How numbers and dates look"
+        style={{ ...field, width: 150 }}>
+        {F.NUMBER_FORMATS.map(([id, label]) => (
+          <option key={id} value={id}>{label}</option>
+        ))}
+      </select>
+      <span style={{ position: 'relative' }}>
+        <button
+          type="button"
+          style={btn(false)}
+          title="Fill and sort"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => setMenu(menu === 'data' ? null : 'data')}>
+          Data ▾
+        </button>
+        {menu === 'data' && (
+          <Menu>
+            <MenuItem onClick={() => fill('down')}>Fill down  (Ctrl+D)</MenuItem>
+            <MenuItem onClick={() => fill('right')}>Fill right  (Ctrl+R)</MenuItem>
+            <MenuItem onClick={() => sortSheet(true)}>Sort sheet by this column  A → Z</MenuItem>
+            <MenuItem onClick={() => sortSheet(false)}>Sort sheet by this column  Z → A</MenuItem>
+            <MenuItem onClick={() => sortSelection(true)}>Sort selection  A → Z</MenuItem>
+            <MenuItem onClick={() => sortSelection(false)}>Sort selection  Z → A</MenuItem>
+          </Menu>
+        )}
+      </span>
+      <button type="button" style={btn(Boolean(find))} title="Find and replace (Ctrl+F)" onClick={() => setFind(find ? null : { text: '', repl: '', matchCase: false, index: 0 })}>Find</button>
       <button type="button" style={btn(false)} title="Remove formatting from the selection" onClick={() => commit(M.clearFormatting(dataRef.current, selOps()))}>Clear format</button>
     </div>
   );
@@ -1131,7 +1266,7 @@ export default function SheetGrid({ text, onChange, editable = false }) {
         type="text"
         value={barValue}
         readOnly={!editable}
-        placeholder={editable ? 'Type a value, then press Enter' : ''}
+        placeholder={editable ? 'Type a value or a formula, like =SUM(A1:A3)' : ''}
         onFocus={() => { if (editable && !editing) startEdit(sel.ar, sel.ac, undefined, 'bar'); }}
         onChange={(e) => { if (editing) setEditing({ ...editing, value: e.target.value }); }}
         onKeyDown={(e) => {
@@ -1144,10 +1279,58 @@ export default function SheetGrid({ text, onChange, editable = false }) {
     </div>
   );
 
+  const findBar = find && (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', padding: '0 8px 8px' }}>
+      <input
+        autoFocus
+        type="text"
+        value={find.text}
+        placeholder="Find"
+        onChange={(e) => setFind({ ...find, text: e.target.value, index: 0 })}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); goToMatch((find.index || 0) + (e.shiftKey ? -1 : 1)); }
+          else if (e.key === 'Escape') { setFind(null); }
+        }}
+        style={{ ...field, width: 150 }}
+      />
+      {editable && (
+        <input
+          type="text"
+          value={find.repl}
+          placeholder="Replace with"
+          onChange={(e) => setFind({ ...find, repl: e.target.value })}
+          style={{ ...field, width: 150 }}
+        />
+      )}
+      <span style={{ fontFamily: 'Chewy, Arial', fontSize: 13, color: INK, minWidth: 70 }}>
+        {find.text ? (matches.length ? `${Math.min((find.index || 0) + 1, matches.length)} of ${matches.length}` : 'No matches') : ''}
+      </span>
+      <button type="button" style={btn(false)} onClick={() => goToMatch((find.index || 0) - 1)} title="Previous match">↑</button>
+      <button type="button" style={btn(false)} onClick={() => goToMatch((find.index || 0) + 1)} title="Next match">↓</button>
+      <button type="button" style={btn(find.matchCase)} onClick={() => setFind({ ...find, matchCase: !find.matchCase, index: 0 })} title="Match case">Aa</button>
+      {editable && <button type="button" style={btn(false)} onClick={replaceOne}>Replace</button>}
+      {editable && <button type="button" style={btn(false)} onClick={replaceAll}>Replace all</button>}
+      <button type="button" style={btn(false)} onClick={() => setFind(null)} title="Close">✕</button>
+    </div>
+  );
+
+  const footer = editable && (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', paddingTop: 8 }}>
+      <button type="button" style={btn(false)} onClick={() => addMore('row', 1)} title="Add a row at the bottom">+ Row</button>
+      <button type="button" style={btn(false)} onClick={() => addMore('row', 10)} title="Add 10 rows at the bottom">+ 10 rows</button>
+      <button type="button" style={btn(false)} onClick={() => addMore('col', 1)} title="Add a column at the right">+ Column</button>
+      <button type="button" style={btn(false)} onClick={() => addMore('col', 10)} title="Add 10 columns at the right">+ 10 columns</button>
+      <span style={{ fontFamily: 'Chewy, Arial', fontSize: 13, color: '#4A5568', marginLeft: 4 }}>
+        {nr} rows × {nc} columns
+      </span>
+    </div>
+  );
+
   return (
     <div style={{ width: '100%' }}>
       {toolbar}
       {formulaBar}
+      {findBar}
       <div
         ref={rootRef}
         style={{
@@ -1281,6 +1464,7 @@ export default function SheetGrid({ text, onChange, editable = false }) {
           />
         )}
       </div>
+      {footer}
     </div>
   );
 }

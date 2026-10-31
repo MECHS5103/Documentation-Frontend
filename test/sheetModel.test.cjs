@@ -6,12 +6,15 @@ const vm = require('node:vm');
 
 // The model is plain ES-module JavaScript. Strip the `export` keywords and run
 // it so these tests need no build step.
-const source = fs
-  .readFileSync(path.join(__dirname, '..', 'components', 'sheets', 'sheetModel.js'), 'utf8')
-  .replace(/^export /gm, '');
-const context = { console, JSON, Math, Number, String, Object, Array, Map, Set };
+const read = (name) =>
+  fs
+    .readFileSync(path.join(__dirname, '..', 'components', 'sheets', name), 'utf8')
+    .replace(/^import .*$/gm, '')
+    .replace(/^export /gm, '');
+const source = read('formula.js') + '\n' + read('sheetModel.js');
+const context = { console, JSON, Math, Number, String, Object, Array, Map, Set, Date, RegExp, Error, Infinity };
 vm.createContext(context);
-vm.runInContext(source + '\nthis.api = { colName, cellName, makeAxis, emptySheet, starterSheet, parseSheet, applyStyle, applyBorders, resolveStyle, parseTSV, toTSV, pasteRows, readRange, setCellValue, clearRange, clearFormatting, usedExtent, setSize, normalizeSheet, insertLines, deleteLines };', context);
+vm.runInContext(source + '\nthis.api = { colName, cellName, makeAxis, emptySheet, starterSheet, parseSheet, applyStyle, applyBorders, resolveStyle, parseTSV, toTSV, pasteRows, readRange, setCellValue, clearRange, clearFormatting, usedExtent, setSize, normalizeSheet, insertLines, deleteLines, addLines, fillRange, sortBlock, findCells, replaceInCells };', context);
 const m = context.api;
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
@@ -183,4 +186,82 @@ test('deleting rows/columns removes them and closes the gap', () => {
   assert.equal(Object.keys(d.cells).length, 1);
   const flipped = m.deleteLines(m.insertLines(m.emptySheet(), 'col', 0, 3), 'col', 2, 0);
   assert.equal(Object.keys(flipped.cells).length, 0);
+});
+
+test('a new sheet is 10 x 10 and old sheets keep what they hold', () => {
+  const fresh = m.emptySheet();
+  assert.equal(fresh.nr, 10);
+  assert.equal(fresh.nc, 10);
+  const old = m.normalizeSheet({ cells: { '40,25': { v: 'far' } } });
+  assert.equal(old.nr, 41);
+  assert.equal(old.nc, 26);
+  assert.equal(m.normalizeSheet({ nr: 3, nc: 4, cells: {} }).nr, 3);
+});
+
+test('adding and deleting lines changes the sheet size, with limits', () => {
+  let d = m.emptySheet();
+  d = m.addLines(d, 'row', 5);
+  d = m.addLines(d, 'col', 2);
+  assert.equal(d.nr, 15);
+  assert.equal(d.nc, 12);
+  d = m.insertLines(d, 'row', 0, 1);
+  assert.equal(d.nr, 16);
+  d = m.deleteLines(d, 'row', 0, 3);
+  assert.equal(d.nr, 12);
+  const tiny = m.deleteLines(m.normalizeSheet({ nr: 2, nc: 2, cells: {} }), 'row', 0, 5);
+  assert.equal(tiny.nr, 1); // never deletes the last row
+});
+
+test('formulas follow inserted and deleted lines', () => {
+  let d = m.emptySheet();
+  d.cells = { '0,0': { v: '1' }, '1,0': { v: '2' }, '2,0': { v: '=SUM(A1:A2)' }, '3,0': { v: '=A2' } };
+  const ins = m.insertLines(d, 'row', 1, 1);
+  assert.equal(ins.cells['3,0'].v, '=SUM(A1:A3)');
+  assert.equal(ins.cells['4,0'].v, '=A3');
+  const del = m.deleteLines(d, 'row', 1, 1);
+  assert.equal(del.cells['1,0'].v, '=SUM(A1:A1)');
+  assert.equal(del.cells['2,0'].v, '=#REF!');
+});
+
+test('fill down / right shifts formulas', () => {
+  let d = m.emptySheet();
+  d.cells = { '0,0': { v: '1' }, '0,1': { v: '=A1*2', b: 1 } };
+  const down = m.fillRange(d, { r1: 0, r2: 2, c1: 0, c2: 1 }, 'down');
+  assert.equal(down.cells['2,0'].v, '1');
+  assert.equal(down.cells['2,1'].v, '=A3*2');
+  assert.equal(down.cells['2,1'].b, 1);
+  const right = m.fillRange({ ...d, cells: { '0,0': { v: '=A2' } } }, { r1: 0, r2: 0, c1: 0, c2: 2 }, 'right');
+  assert.equal(right.cells['0,2'].v, '=C2');
+});
+
+test('sort moves whole rows, keeps blanks last, and shifts formulas', () => {
+  let d = m.emptySheet();
+  d.cells = {
+    '0,0': { v: 'pear' }, '0,1': { v: '3' },
+    '1,0': { v: 'apple' }, '1,1': { v: '=B2+1', b: 1 },
+    '2,0': { v: '' },
+    '3,0': { v: 'fig' }, '3,1': { v: '9' },
+  };
+  const valueOf = (r, c) => { const x = d.cells[r + ',' + c]; return x && x.v !== '' ? x.v : ''; };
+  const asc = m.sortBlock(d, { r1: 0, r2: 3, c1: 0, c2: 1 }, 0, true, valueOf);
+  assert.equal(asc.cells['0,0'].v, 'apple');
+  assert.equal(asc.cells['0,1'].v, '=B1+1'); // same-row reference follows its row
+  assert.equal(asc.cells['1,0'].v, 'fig');
+  assert.equal(asc.cells['2,0'].v, 'pear');
+  const desc = m.sortBlock(d, { r1: 0, r2: 3, c1: 0, c2: 1 }, 0, false, valueOf);
+  assert.equal(desc.cells['0,0'].v, 'pear');
+  assert.equal(desc.cells['2,0'].v, 'apple');
+});
+
+test('find and replace', () => {
+  const d = m.emptySheet();
+  d.cells = { '0,0': { v: 'Robot Reveal' }, '2,1': { v: 'robot' }, '3,1': { v: 'cat' } };
+  assert.equal(m.findCells(d, 'robot', false).length, 2);
+  assert.equal(m.findCells(d, 'robot', true).length, 1);
+  const out = m.replaceInCells(d, 'robot', 'drone', false);
+  assert.equal(out.count, 2);
+  assert.equal(out.data.cells['0,0'].v, 'drone Reveal');
+  const one = m.replaceInCells(d, 'robot', 'x', false, { r: 2, c: 1 });
+  assert.equal(one.count, 1);
+  assert.equal(one.data.cells['0,0'].v, 'Robot Reveal');
 });

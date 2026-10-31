@@ -1,3 +1,5 @@
+import { isFormula, shiftFormula, remapFormula, moveRowRefs } from './formula';
+
 // Pure data helpers for the Sheets pill. No React in here, so it is easy to test.
 //
 // A sheet is stored as JSON text:
@@ -7,16 +9,17 @@
 //     colW: { col: px }, rowH: { row: px },          // only sizes that were changed
 //     colS: { col: {style} }, rowS: { row: {style} }, // whole-column / whole-row formatting
 //     base: {style},                                  // whole-sheet formatting
+//     nr, nc: number of rows / columns the sheet has
 //     opts: { grid, headers, headerRow, banded, freezeR, freezeC, dw, dh }
 //   }
-// Only cells that hold something are stored, so the grid itself can be endless.
+// Only cells that hold something are stored.
 
 export const DEFAULT_COL_W = 100;
 export const DEFAULT_ROW_H = 26;
 export const MIN_SIZE = 16;
 export const MAX_SIZE = 800;
 
-export const STYLE_KEYS = ['b', 'i', 'u', 's', 'fs', 'c', 'bg', 'a', 'w', 'bd'];
+export const STYLE_KEYS = ['b', 'i', 'u', 's', 'fs', 'c', 'bg', 'a', 'w', 'bd', 'nf'];
 
 export const THEMES = {
   docs: {
@@ -132,8 +135,15 @@ export const defaultOpts = () => ({
   dh: DEFAULT_ROW_H,
 });
 
+export const DEFAULT_ROWS = 10;
+export const DEFAULT_COLS = 10;
+export const MAX_ROWS = 100000;
+export const MAX_COLS = 1000;
+
 export const emptySheet = () => ({
   v: 1,
+  nr: DEFAULT_ROWS,
+  nc: DEFAULT_COLS,
   theme: 'docs',
   cells: {},
   colW: {},
@@ -152,13 +162,15 @@ export const starterSheet = () => {
   sheet.opts.freezeR = 1;
   const rows = [
     ['Campaign', 'Channel', 'Budget', 'Status'],
-    ['Spring Sponsor Drive', 'Email', '$1,200', 'Planned'],
-    ['Robot Reveal', 'Instagram', '$300', 'In progress'],
-    ['Build Season Recap', 'YouTube', '$150', 'Done'],
+    ['Spring Sponsor Drive', 'Email', '1200', 'Planned'],
+    ['Robot Reveal', 'Instagram', '300', 'In progress'],
+    ['Build Season Recap', 'YouTube', '150', 'Done'],
+    ['Total', '', '=SUM(C2:C4)', ''],
   ];
   rows.forEach((row, r) =>
     row.forEach((value, c) => {
-      sheet.cells[`${r},${c}`] = { v: value };
+      if (value === '') return;
+      sheet.cells[`${r},${c}`] = c === 2 && r > 0 ? { v: value, nf: 'cur', ...(r === 4 ? { b: 1 } : {}) } : { v: value, ...(r === 4 ? { b: 1 } : {}) };
     })
   );
   sheet.colW = { 0: 170, 1: 120, 3: 120 };
@@ -171,10 +183,19 @@ const isPlainObject = (value) =>
 export const normalizeSheet = (raw) => {
   const base = emptySheet();
   if (!isPlainObject(raw)) return base;
+  const cells = isPlainObject(raw.cells) ? raw.cells : {};
+  const filled = usedExtent({ cells });
+  // Sheets saved before sizes existed keep everything they hold.
+  const dim = (value, need, fallback, max) => {
+    const n = Number.isInteger(value) && value >= 1 ? value : fallback;
+    return Math.min(max, Math.max(n, need));
+  };
   return {
     v: 1,
+    nr: dim(raw.nr, filled.row + 1, DEFAULT_ROWS, MAX_ROWS),
+    nc: dim(raw.nc, filled.col + 1, DEFAULT_COLS, MAX_COLS),
     theme: THEMES[raw.theme] ? raw.theme : base.theme,
-    cells: isPlainObject(raw.cells) ? raw.cells : {},
+    cells,
     colW: isPlainObject(raw.colW) ? raw.colW : {},
     rowH: isPlainObject(raw.rowH) ? raw.rowH : {},
     colS: isPlainObject(raw.colS) ? raw.colS : {},
@@ -605,8 +626,6 @@ export const pasteRows = (data, row0, col0, rows) => {
 
 // --- Insert / delete rows and columns -----------------------------------------
 
-const MAX_LINES = 1000000;
-
 // Move every entry of an index-keyed map: `move(index)` returns the new index,
 // or -1 to drop it.
 const remapIndexMap = (map, move) => {
@@ -618,54 +637,184 @@ const remapIndexMap = (map, move) => {
   return out;
 };
 
-const remapCells = (cells, axis, move) => {
+// Move cells along an axis and keep every formula pointing at what it meant.
+const remapCells = (cells, axis, move, change) => {
   const out = {};
   Object.keys(cells || {}).forEach((k) => {
     const [r, c] = parseKey(k);
+    let cell = cells[k];
+    if (isFormula(cell.v)) {
+      const v = remapFormula(cell.v, axis, change);
+      if (v !== cell.v) cell = { ...cell, v };
+    }
     const to = move(axis === 'row' ? r : c);
     if (to < 0) return;
-    out[axis === 'row' ? key(to, c) : key(r, to)] = cells[k];
+    out[axis === 'row' ? key(to, c) : key(r, to)] = cell;
   });
   return out;
 };
 
+const sizeField = (axis) => (axis === 'row' ? 'nr' : 'nc');
+const maxLines = (axis) => (axis === 'row' ? MAX_ROWS : MAX_COLS);
+
+// How many lines can still be added on this axis.
+export const roomFor = (data, axis) => Math.max(0, maxLines(axis) - data[sizeField(axis)]);
+
 // Insert `count` empty lines so the first new one sits at index `at`.
 export const insertLines = (data, axis, at, count = 1) => {
-  const n = Math.max(1, Math.min(count, 1000));
-  const index = Math.max(0, Math.min(at, MAX_LINES));
-  const move = (i) => (i >= index ? i + n : i);
   const rowAxis = axis === 'row';
+  const n = Math.min(Math.max(1, count), roomFor(data, axis));
+  if (n < 1) return data;
+  const index = Math.max(0, Math.min(at, data[sizeField(axis)]));
+  const move = (i) => (i >= index ? i + n : i);
   const opts = { ...data.opts };
   const freezeKey = rowAxis ? 'freezeR' : 'freezeC';
   if (index < (opts[freezeKey] || 0)) opts[freezeKey] += n;
   return {
     ...data,
-    cells: remapCells(data.cells, axis, move),
+    [sizeField(axis)]: data[sizeField(axis)] + n,
+    cells: remapCells(data.cells, axis, move, { type: 'insert', at: index, count: n }),
     [rowAxis ? 'rowH' : 'colW']: remapIndexMap(data[rowAxis ? 'rowH' : 'colW'], move),
     [rowAxis ? 'rowS' : 'colS']: remapIndexMap(data[rowAxis ? 'rowS' : 'colS'], move),
     opts,
   };
 };
 
-// Delete lines first..last (inclusive); everything after moves up/left.
+// Add lines at the end of the sheet.
+export const addLines = (data, axis, count) => insertLines(data, axis, data[sizeField(axis)], count);
+
+// Delete lines first..last (inclusive); everything after moves up/left. A sheet
+// always keeps at least one row and one column.
 export const deleteLines = (data, axis, first, last) => {
-  const a = Math.min(first, last);
-  const b = Math.max(first, last);
-  const n = b - a + 1;
-  const move = (i) => (i < a ? i : i > b ? i - n : -1);
   const rowAxis = axis === 'row';
+  const total = data[sizeField(axis)];
+  const a = Math.max(0, Math.min(first, last));
+  const b = Math.min(total - 1, Math.max(first, last));
+  if (b < a) return data;
+  const n = Math.min(b - a + 1, total - 1);
+  if (n < 1) return data;
+  const bb = a + n - 1;
+  const move = (i) => (i < a ? i : i > bb ? i - n : -1);
   const opts = { ...data.opts };
   const freezeKey = rowAxis ? 'freezeR' : 'freezeC';
   const frozen = opts[freezeKey] || 0;
   if (frozen > a) opts[freezeKey] = Math.max(a, frozen - n);
-  const next = {
+  return {
     ...data,
-    cells: remapCells(data.cells, axis, move),
+    [sizeField(axis)]: total - n,
+    cells: remapCells(data.cells, axis, move, { type: 'delete', first: a, last: bb }),
     [rowAxis ? 'rowH' : 'colW']: remapIndexMap(data[rowAxis ? 'rowH' : 'colW'], move),
     [rowAxis ? 'rowS' : 'colS']: remapIndexMap(data[rowAxis ? 'rowS' : 'colS'], move),
     opts,
   };
-  return next;
+};
+
+// --- Fill, sort ----------------------------------------------------------------
+
+// Copy the first row (or first column) of the selection into the rest, moving
+// formulas the way a spreadsheet does.
+export const fillRange = (data, sel, direction) => {
+  const cells = { ...data.cells };
+  const down = direction === 'down';
+  for (let r = sel.r1; r <= sel.r2; r += 1) {
+    for (let c = sel.c1; c <= sel.c2; c += 1) {
+      if ((down && r === sel.r1) || (!down && c === sel.c1)) continue;
+      const sr = down ? sel.r1 : r;
+      const sc = down ? c : sel.c1;
+      const source = data.cells[key(sr, sc)];
+      const k = key(r, c);
+      if (!source) {
+        delete cells[k];
+      } else {
+        const copy = { ...source };
+        if (isFormula(copy.v)) copy.v = shiftFormula(copy.v, r - sr, c - sc);
+        cells[k] = copy;
+      }
+    }
+  }
+  return { ...data, cells };
+};
+
+const compareForSort = (a, b) => {
+  const blankA = a === '' || a === null || a === undefined;
+  const blankB = b === '' || b === null || b === undefined;
+  if (blankA || blankB) return blankA === blankB ? 0 : blankA ? 1 : -1; // blanks last
+  const rank = (v) => (typeof v === 'number' ? 0 : typeof v === 'boolean' ? 2 : 1);
+  if (rank(a) !== rank(b)) return rank(a) - rank(b);
+  if (typeof a === 'string') return a.toLowerCase().localeCompare(b.toLowerCase());
+  return a < b ? -1 : a > b ? 1 : 0;
+};
+
+// Sort the rows of a block by one column. `valueOf(r, c)` supplies computed values.
+// `block` is { r1, r2, c1, c2 }; `byCol` is the column to sort on.
+export const sortBlock = (data, block, byCol, ascending, valueOf) => {
+  const rows = [];
+  for (let r = block.r1; r <= block.r2; r += 1) rows.push(r);
+  const order = rows
+    .map((r, i) => ({ r, i, v: valueOf(r, byCol) }))
+    .sort((x, y) => {
+      const d = compareForSort(x.v, y.v);
+      // Blanks stay at the bottom either way.
+      const blank = (x.v === '' || x.v === undefined || x.v === null) || (y.v === '' || y.v === undefined || y.v === null);
+      return (blank ? d : ascending ? d : -d) || x.i - y.i;
+    });
+  const cells = { ...data.cells };
+  rows.forEach((target, i) => {
+    const sourceRow = order[i].r;
+    for (let c = block.c1; c <= block.c2; c += 1) {
+      const source = data.cells[key(sourceRow, c)];
+      const k = key(target, c);
+      if (!source) {
+        delete cells[k];
+      } else {
+        const copy = { ...source };
+        if (isFormula(copy.v)) copy.v = moveRowRefs(copy.v, sourceRow, target);
+        cells[k] = copy;
+      }
+    }
+  });
+  return { ...data, cells };
+};
+
+// --- Find & replace --------------------------------------------------------------
+
+export const findCells = (data, text, matchCase) => {
+  if (!text) return [];
+  const needle = matchCase ? text : text.toLowerCase();
+  const hits = [];
+  Object.keys(data.cells).forEach((k) => {
+    const v = data.cells[k].v;
+    if (v === undefined || v === null) return;
+    const hay = matchCase ? String(v) : String(v).toLowerCase();
+    if (hay.includes(needle)) {
+      const [r, c] = parseKey(k);
+      hits.push({ r, c });
+    }
+  });
+  return hits.sort((a, b) => a.r - b.r || a.c - b.c);
+};
+
+export const replaceInCells = (data, text, replacement, matchCase, only) => {
+  if (!text) return { data, count: 0 };
+  const cells = { ...data.cells };
+  const flags = matchCase ? 'g' : 'gi';
+  const re = new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
+  let count = 0;
+  Object.keys(cells).forEach((k) => {
+    if (only) {
+      const [r, c] = parseKey(k);
+      if (r !== only.r || c !== only.c) return;
+    }
+    const cell = cells[k];
+    if (cell.v === undefined || cell.v === null) return;
+    const before = String(cell.v);
+    const after = before.replace(re, () => {
+      count += 1;
+      return replacement;
+    });
+    if (after !== before) cells[k] = { ...cell, v: after };
+  });
+  return { data: { ...data, cells }, count };
 };
 
 export const normalizeRange = (anchor, focus) => ({
