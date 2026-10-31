@@ -31,6 +31,7 @@ export const Pill = ({
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
+  const [hovered, setHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [localText, setLocalText] = useState(description);
 
@@ -97,11 +98,16 @@ export const Pill = ({
     : textBody;
 
   return (
-    <View
+    <Pressable
+      accessible={false}
+      focusable={false}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
       style={[
         styles.Pill,
         { backgroundColor: backgroundColor },
         isMobile && { width: '100%', maxWidth: '100%' },
+        { cursor: 'auto' },
         style,
       ]}>
       <View style={[styles.PillHeader, { backgroundColor: headerColor }]}>
@@ -128,12 +134,12 @@ export const Pill = ({
               zIndex: 30,
             }}>
             {headerRight}
-            {showCopy && <CopyButton getText={() => copyable} style={headerRight ? { marginLeft: 6 } : null} />}
+            {showCopy && <CopyButton getText={() => copyable} visible={hovered || isMobile} style={headerRight ? { marginLeft: 6 } : null} />}
           </View>
         )}
       </View>
       <View style={styles.PillDescription}>{body}</View>
-    </View>
+    </Pressable>
   );
 };
 
