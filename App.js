@@ -43,7 +43,14 @@ import {
   ImportantPill,
   SuccessPill,
   VocabularyPill,
+  NotePill,
 } from './components/pills/PillVariants';
+import {
+  ChecklistPill,
+  StepsPill,
+  LinkPill,
+  ImagePill,
+} from './components/pills/StructuredPills';
 
 const safeDecodeURIComponent = (value) => {
   try {
@@ -464,6 +471,14 @@ export default function App() {
     } else if (type === 'SheetsPill') {
       newElement.title = 'Sheet';
       newElement.text = serializeSheet(starterSheet());
+    } else if (type === 'ChecklistPill') {
+      newElement.text = '[ ] First item\n[ ] Second item\n[ ] Third item';
+    } else if (type === 'StepsPill') {
+      newElement.text = 'First step\nSecond step\nThird step';
+    } else if (type === 'LinkPill') {
+      newElement.text = 'Resource title\nhttps://\nA short description of what this link is for.';
+    } else if (type === 'ImagePill') {
+      newElement.text = 'https://\nCaption for the picture';
     } else if (type.endsWith('Pill')) {
       newElement.text = 'New description text...';
       if (type === 'CodePill') {
@@ -689,6 +704,9 @@ export default function App() {
                         key={`el-${index}`}
                         description={item.text || item.description}
                         language={item.language}
+                        onUpdateLanguage={(newLanguage) =>
+                          handleUpdateElementField(index, 'language', newLanguage)
+                        }
                         onUpdate={(newText) =>
                           handleUpdateElementField(
                             index,
@@ -782,6 +800,101 @@ export default function App() {
                   case 'VocabularyPill':
                     elementComponent = (
                       <VocabularyPill
+                        key={`el-${index}`}
+                        description={item.text || item.description}
+                        onUpdate={(newText) =>
+                          handleUpdateElementField(
+                            index,
+                            item.description !== undefined
+                              ? 'description'
+                              : 'text',
+                            newText
+                          )
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'NotePill':
+                    elementComponent = (
+                      <NotePill
+                        key={`el-${index}`}
+                        description={item.text || item.description}
+                        onUpdate={(newText) =>
+                          handleUpdateElementField(
+                            index,
+                            item.description !== undefined
+                              ? 'description'
+                              : 'text',
+                            newText
+                          )
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'ChecklistPill':
+                    elementComponent = (
+                      <ChecklistPill
+                        key={`el-${index}`}
+                        description={item.text || item.description}
+                        onUpdate={(newText) =>
+                          handleUpdateElementField(
+                            index,
+                            item.description !== undefined
+                              ? 'description'
+                              : 'text',
+                            newText
+                          )
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'StepsPill':
+                    elementComponent = (
+                      <StepsPill
+                        key={`el-${index}`}
+                        description={item.text || item.description}
+                        onUpdate={(newText) =>
+                          handleUpdateElementField(
+                            index,
+                            item.description !== undefined
+                              ? 'description'
+                              : 'text',
+                            newText
+                          )
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'LinkPill':
+                    elementComponent = (
+                      <LinkPill
+                        key={`el-${index}`}
+                        description={item.text || item.description}
+                        onUpdate={(newText) =>
+                          handleUpdateElementField(
+                            index,
+                            item.description !== undefined
+                              ? 'description'
+                              : 'text',
+                            newText
+                          )
+                        }
+                        setHasSaved={setHasSaved}
+                        loggedIn={loggedIn}
+                      />
+                    );
+                    break;
+                  case 'ImagePill':
+                    elementComponent = (
+                      <ImagePill
                         key={`el-${index}`}
                         description={item.text || item.description}
                         onUpdate={(newText) =>

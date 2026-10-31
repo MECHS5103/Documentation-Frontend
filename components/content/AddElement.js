@@ -27,6 +27,13 @@ export const ElementSelectorMenu = ({ onSelect }) => {
     { label: 'Video', type: 'VideoPill' },
     { label: 'Sheet', type: 'SheetsPill' },
   ];
+  const row3 = [
+    { label: 'Note', type: 'NotePill' },
+    { label: 'Checklist', type: 'ChecklistPill' },
+    { label: 'Steps', type: 'StepsPill' },
+    { label: 'Resource', type: 'LinkPill' },
+    { label: 'Image', type: 'ImagePill' },
+  ];
 
   return (
     <View style={styles.MenuContainer}>
@@ -42,6 +49,16 @@ export const ElementSelectorMenu = ({ onSelect }) => {
       </View>
       <View style={styles.PillRow}>
         {row2.map((item) => (
+          <Pressable
+            key={item.label}
+            style={styles.PillButton}
+            onPress={() => onSelect(item.type)}>
+            <Text style={styles.PillText}>{item.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={styles.PillRow}>
+        {row3.map((item) => (
           <Pressable
             key={item.label}
             style={styles.PillButton}

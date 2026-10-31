@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Text, Pressable, useWindowDimensions } from 'react-native';
+import { Pressable, useWindowDimensions } from 'react-native';
+import RichText from '../common/RichText';
 import styles from '../../styles';
 import AutoGrowTextInput from '../common/AutoGrowTextInput';
 import useDoubleClick from '../../hooks/useDoubleClick';
@@ -49,15 +50,15 @@ export const Paragraph = ({ text, onUpdate, setHasSaved, loggedIn }) => {
     <Pressable
       onPress={handleDoubleClick}
       style={{ width: '100%', alignSelf: 'stretch' }}>
-      <Text
-        selectable={false}
+      <RichText
+        text={localText}
+        selectable={!loggedIn}
         style={[
           styles.ParagraphText,
           isMobile && styles.ParagraphTextMobile,
-          { userSelect: 'none' },
-        ]}>
-        {localText}
-      </Text>
+          { userSelect: loggedIn ? 'none' : 'text' },
+        ]}
+      />
     </Pressable>
   );
 };

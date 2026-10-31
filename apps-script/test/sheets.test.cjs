@@ -164,3 +164,18 @@ test('the Media -> Marketing migration renames the tab and page categories', () 
   assert.deepEqual(toc.map((s) => s.name), ['Marketing', 'Build']);
   assert.deepEqual(pages.map((s) => s.first), ['Marketing', 'Build', 'Marketing']);
 });
+
+test('accepts the newer text pills and keeps the chosen code language', () => {
+  const context = load();
+  for (const type of ['NotePill', 'ChecklistPill', 'StepsPill', 'LinkPill', 'ImagePill']) {
+    const result = context.validateSavePayload(basePayload({ type, text: 'line one\nline two' }));
+    assert.equal(result.pageElements[0].type, type);
+    assert.equal(result.pageElements[0].text, 'line one\nline two');
+  }
+  const code = context.validateSavePayload(basePayload({ type: 'CodePill', text: 'x = 1', language: 'Python' }));
+  assert.equal(code.pageElements[0].language, 'Python');
+  assert.throws(
+    () => context.validateSavePayload(basePayload({ type: 'MadeUpPill', text: 'x' })),
+    (error) => error.code === 'INVALID_PAYLOAD'
+  );
+});

@@ -305,6 +305,11 @@ function validateSavePayload(data) {
     SuccessPill: true,
     VocabularyPill: true,
     SheetsPill: true,
+    NotePill: true,
+    ChecklistPill: true,
+    StepsPill: true,
+    LinkPill: true,
+    ImagePill: true,
     Credits: true
   };
 
