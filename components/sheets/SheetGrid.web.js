@@ -454,6 +454,44 @@ export default function SheetGrid({ text, onChange, editable = false }) {
     return out;
   };
 
+  const lineEdit = (action) => {
+    if (!editable) return;
+    const d = dataRef.current;
+    const onRows = action.endsWith('row');
+    const axis = onRows ? 'row' : 'col';
+    const first = onRows ? range.r1 : range.c1;
+    const last = onRows ? range.r2 : range.c2;
+    const wholeSheet = sel.kind === 'all';
+    const count = last - first + 1;
+    // Selecting whole columns means rows can't be meaningfully edited and vice versa.
+    if ((onRows && sel.kind === 'col') || (!onRows && sel.kind === 'row')) {
+      setMenu(null);
+      return;
+    }
+    if (action.startsWith('del')) {
+      if (wholeSheet) { setMenu(null); return; }
+      commit(M.deleteLines(d, axis, first, last));
+      if (onRows) setSel({ kind: 'row', ar: first, ac: 0, fr: first, fc: 0 });
+      else setSel({ kind: 'col', ar: 0, ac: first, fr: 0, fc: first });
+    } else {
+      const before = action.startsWith('insBefore');
+      commit(M.insertLines(d, axis, before ? first : last + 1, count));
+      if (!before) {
+        const a = last + 1;
+        const b = last + count;
+        setSel(onRows
+          ? { kind: 'row', ar: a, ac: 0, fr: b, fc: 0 }
+          : { kind: 'col', ar: 0, ac: a, fr: 0, fc: b });
+      }
+    }
+    setMenu(null);
+  };
+  const lineCount = (onRows) => (onRows ? range.r2 - range.r1 + 1 : range.c2 - range.c1 + 1);
+  const noun = (onRows) => {
+    const n = lineCount(onRows);
+    return `${n} ${onRows ? 'row' : 'column'}${n === 1 ? '' : 's'}`;
+  };
+
   const applySize = (axis, value) => {
     const n = Number(value);
     if (!Number.isFinite(n) || n < M.MIN_SIZE) return;
@@ -1060,6 +1098,26 @@ export default function SheetGrid({ text, onChange, editable = false }) {
           <option key={n} value={n}>{n}px</option>
         ))}
       </select>
+      <span style={{ position: 'relative' }}>
+        <button
+          type="button"
+          style={btn(false)}
+          title="Add or remove rows and columns"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => setMenu(menu === 'lines' ? null : 'lines')}>
+          Rows &amp; columns ▾
+        </button>
+        {menu === 'lines' && (
+          <Menu>
+            <MenuItem onClick={() => lineEdit('insBeforerow')}>Insert {noun(true)} above</MenuItem>
+            <MenuItem onClick={() => lineEdit('insAfterrow')}>Insert {noun(true)} below</MenuItem>
+            <MenuItem onClick={() => lineEdit('insBeforecol')}>Insert {noun(false)} left</MenuItem>
+            <MenuItem onClick={() => lineEdit('insAftercol')}>Insert {noun(false)} right</MenuItem>
+            <MenuItem onClick={() => lineEdit('delrow')}>Delete {noun(true)}</MenuItem>
+            <MenuItem onClick={() => lineEdit('delcol')}>Delete {noun(false)}</MenuItem>
+          </Menu>
+        )}
+      </span>
       <button type="button" style={btn(false)} title="Remove formatting from the selection" onClick={() => commit(M.clearFormatting(dataRef.current, selOps()))}>Clear format</button>
     </div>
   );

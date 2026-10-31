@@ -11,7 +11,7 @@ const source = fs
   .replace(/^export /gm, '');
 const context = { console, JSON, Math, Number, String, Object, Array, Map, Set };
 vm.createContext(context);
-vm.runInContext(source + '\nthis.api = { colName, cellName, makeAxis, emptySheet, starterSheet, parseSheet, applyStyle, applyBorders, resolveStyle, parseTSV, toTSV, pasteRows, readRange, setCellValue, clearRange, clearFormatting, usedExtent, setSize, normalizeSheet };', context);
+vm.runInContext(source + '\nthis.api = { colName, cellName, makeAxis, emptySheet, starterSheet, parseSheet, applyStyle, applyBorders, resolveStyle, parseTSV, toTSV, pasteRows, readRange, setCellValue, clearRange, clearFormatting, usedExtent, setSize, normalizeSheet, insertLines, deleteLines };', context);
 const m = context.api;
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
@@ -143,4 +143,44 @@ test('resizing clamps to sensible limits', () => {
   const data = m.setSize(m.emptySheet(), 'col', [0, 2], 5000);
   assert.equal(data.colW[0], 800);
   assert.equal(m.setSize(data, 'row', [1], 1).rowH[1], 16);
+});
+
+test('inserting rows/columns shifts cells, sizes, styles and the freeze line', () => {
+  let d = m.emptySheet();
+  d.cells = { '0,0': { v: 'a' }, '2,1': { v: 'b' }, '5,3': { v: 'c' } };
+  d.rowH = { 2: 50 };
+  d.colW = { 1: 150 };
+  d.rowS = { 5: { b: 1 } };
+  d.opts.freezeR = 1;
+  d = m.insertLines(d, 'row', 2, 2);
+  assert.equal(d.cells['0,0'].v, 'a');
+  assert.equal(d.cells['4,1'].v, 'b');
+  assert.equal(d.cells['7,3'].v, 'c');
+  assert.equal(d.rowH[4], 50);
+  assert.ok(d.rowS[7]);
+  assert.equal(d.colW[1], 150);
+  assert.equal(d.opts.freezeR, 1);
+  d = m.insertLines(d, 'row', 0, 1);
+  assert.equal(d.opts.freezeR, 2);
+  d = m.insertLines(d, 'col', 1, 1);
+  assert.equal(d.cells['5,2'].v, 'b');
+  assert.equal(d.colW[2], 150);
+});
+
+test('deleting rows/columns removes them and closes the gap', () => {
+  let d = m.emptySheet();
+  d.cells = { '0,0': { v: 'a' }, '2,1': { v: 'b' }, '3,1': { v: 'c' }, '5,3': { v: 'd' } };
+  d.rowH = { 2: 50, 6: 70 };
+  d.opts.freezeR = 4;
+  d = m.deleteLines(d, 'row', 2, 3);
+  assert.equal(d.cells['0,0'].v, 'a');
+  assert.equal(d.cells['2,1'], undefined);
+  assert.equal(d.cells['3,3'].v, 'd');
+  assert.equal(d.rowH[2], undefined);
+  assert.equal(d.rowH[4], 70);
+  assert.equal(d.opts.freezeR, 2);
+  d = m.deleteLines(d, 'col', 3, 3);
+  assert.equal(Object.keys(d.cells).length, 1);
+  const flipped = m.deleteLines(m.insertLines(m.emptySheet(), 'col', 0, 3), 'col', 2, 0);
+  assert.equal(Object.keys(flipped.cells).length, 0);
 });

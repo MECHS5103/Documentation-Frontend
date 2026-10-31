@@ -603,6 +603,71 @@ export const pasteRows = (data, row0, col0, rows) => {
   return { ...data, cells };
 };
 
+// --- Insert / delete rows and columns -----------------------------------------
+
+const MAX_LINES = 1000000;
+
+// Move every entry of an index-keyed map: `move(index)` returns the new index,
+// or -1 to drop it.
+const remapIndexMap = (map, move) => {
+  const out = {};
+  Object.keys(map || {}).forEach((k) => {
+    const to = move(Number(k));
+    if (to >= 0) out[to] = map[k];
+  });
+  return out;
+};
+
+const remapCells = (cells, axis, move) => {
+  const out = {};
+  Object.keys(cells || {}).forEach((k) => {
+    const [r, c] = parseKey(k);
+    const to = move(axis === 'row' ? r : c);
+    if (to < 0) return;
+    out[axis === 'row' ? key(to, c) : key(r, to)] = cells[k];
+  });
+  return out;
+};
+
+// Insert `count` empty lines so the first new one sits at index `at`.
+export const insertLines = (data, axis, at, count = 1) => {
+  const n = Math.max(1, Math.min(count, 1000));
+  const index = Math.max(0, Math.min(at, MAX_LINES));
+  const move = (i) => (i >= index ? i + n : i);
+  const rowAxis = axis === 'row';
+  const opts = { ...data.opts };
+  const freezeKey = rowAxis ? 'freezeR' : 'freezeC';
+  if (index < (opts[freezeKey] || 0)) opts[freezeKey] += n;
+  return {
+    ...data,
+    cells: remapCells(data.cells, axis, move),
+    [rowAxis ? 'rowH' : 'colW']: remapIndexMap(data[rowAxis ? 'rowH' : 'colW'], move),
+    [rowAxis ? 'rowS' : 'colS']: remapIndexMap(data[rowAxis ? 'rowS' : 'colS'], move),
+    opts,
+  };
+};
+
+// Delete lines first..last (inclusive); everything after moves up/left.
+export const deleteLines = (data, axis, first, last) => {
+  const a = Math.min(first, last);
+  const b = Math.max(first, last);
+  const n = b - a + 1;
+  const move = (i) => (i < a ? i : i > b ? i - n : -1);
+  const rowAxis = axis === 'row';
+  const opts = { ...data.opts };
+  const freezeKey = rowAxis ? 'freezeR' : 'freezeC';
+  const frozen = opts[freezeKey] || 0;
+  if (frozen > a) opts[freezeKey] = Math.max(a, frozen - n);
+  const next = {
+    ...data,
+    cells: remapCells(data.cells, axis, move),
+    [rowAxis ? 'rowH' : 'colW']: remapIndexMap(data[rowAxis ? 'rowH' : 'colW'], move),
+    [rowAxis ? 'rowS' : 'colS']: remapIndexMap(data[rowAxis ? 'rowS' : 'colS'], move),
+    opts,
+  };
+  return next;
+};
+
 export const normalizeRange = (anchor, focus) => ({
   r1: Math.min(anchor.r, focus.r),
   r2: Math.max(anchor.r, focus.r),
