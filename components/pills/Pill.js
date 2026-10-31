@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, useWindowDimensions } from 'react-native';
 import styles from '../../styles';
 import AutoGrowTextInput from '../common/AutoGrowTextInput';
@@ -32,6 +32,32 @@ export const Pill = ({
   const isMobile = width < 768;
 
   const [hovered, setHovered] = useState(false);
+  const frame = useRef(null);
+  const leaveTimer = useRef(null);
+
+  // Hover is tracked on the pill's own DOM node. mouseenter / mouseleave fire once
+  // for the whole pill (not for every child), and a short delay before hiding keeps
+  // the button from flickering when the pointer crosses a border or gap.
+  useEffect(() => {
+    const node = frame.current;
+    if (!node || !node.addEventListener) return undefined;
+    const enter = () => {
+      clearTimeout(leaveTimer.current);
+      setHovered(true);
+    };
+    const leave = () => {
+      clearTimeout(leaveTimer.current);
+      leaveTimer.current = setTimeout(() => setHovered(false), 250);
+    };
+    node.addEventListener('mouseenter', enter);
+    node.addEventListener('mouseleave', leave);
+    return () => {
+      clearTimeout(leaveTimer.current);
+      node.removeEventListener('mouseenter', enter);
+      node.removeEventListener('mouseleave', leave);
+    };
+  }, []);
+
   const [isEditing, setIsEditing] = useState(false);
   const [localText, setLocalText] = useState(description);
 
@@ -99,10 +125,9 @@ export const Pill = ({
 
   return (
     <Pressable
+      ref={frame}
       accessible={false}
       focusable={false}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
       style={[
         styles.Pill,
         { backgroundColor: backgroundColor },
@@ -127,8 +152,8 @@ export const Pill = ({
           <View
             style={{
               position: 'absolute',
-              right: 10,
-              top: 2,
+              right: 26,
+              top: 5,
               flexDirection: 'row',
               alignItems: 'center',
               zIndex: 30,

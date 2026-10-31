@@ -31,7 +31,7 @@ export const copyToClipboard = async (text) => {
 
 // The two-squares "copy" icon, drawn with plain views so it needs no icon library.
 const CopyIcon = ({ color }) => (
-  <View style={{ width: 16, height: 16 }}>
+  <View style={{ width: 15, height: 15 }}>
     <View style={{ position: 'absolute', left: 0, top: 0, width: 10, height: 11, borderRadius: 2, borderWidth: 2, borderColor: color }} />
     <View style={{ position: 'absolute', left: 5, top: 4, width: 10, height: 11, borderRadius: 2, borderWidth: 2, borderColor: color, backgroundColor: '#FFFFFF' }} />
   </View>
@@ -76,7 +76,7 @@ export const CopyButton = ({ getText, visible = true, style }) => {
       style={({ hovered, pressed }) => [
         {
           minWidth: 28,
-          height: 24,
+          height: 22,
           borderWidth: 2,
           borderColor: '#1A202C',
           borderRadius: 999,

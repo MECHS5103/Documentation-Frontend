@@ -194,7 +194,7 @@ const LanguagePicker = ({ value, onChange }) => {
       onMouseDown={(e) => e.stopPropagation()}
       title="Language"
       style={{
-        height: 24,
+        height: 22,
         borderRadius: 999,
         border: '2px solid #1A202C',
         background: '#FFFFFF',
