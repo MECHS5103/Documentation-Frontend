@@ -11,7 +11,7 @@ locals {
       "font-src 'self' data: https://fonts.gstatic.com;",
       "img-src 'self' data: blob: https://*.googleusercontent.com https://www.gstatic.com;",
       "media-src 'self' blob: https://drive.google.com https://*.googleapis.com https://*.googleusercontent.com;",
-      "connect-src 'self' https://script.google.com https://script.googleusercontent.com https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com;",
+      "connect-src 'self' https://api.team5103.com https://script.google.com https://script.googleusercontent.com https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com;",
       "frame-src https://accounts.google.com https://*.firebaseapp.com https://*.google.com;",
       "worker-src 'self' blob:;",
       "manifest-src 'self';",
