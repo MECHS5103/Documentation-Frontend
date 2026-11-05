@@ -11,7 +11,7 @@ service firebase.storage {
     function isValidVideo(fileName) {
       return request.resource != null
         && request.resource.size > 0
-        && request.resource.size <= 25 * 1024 * 1024
+        && request.resource.size <= 500 * 1024 * 1024
         && (
           (request.resource.contentType == 'video/mp4'
             && fileName.matches('^[A-Za-z0-9-]{16,80}\\.mp4$'))

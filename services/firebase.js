@@ -7,7 +7,10 @@ import {
 
 import { auth, storage } from './firebaseApp';
 
-export const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+// Keep this in sync with the size limit in firebase/storage.rules (the rules are
+// the real enforcement; this just gives a friendly message before uploading).
+export const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+const MAX_VIDEO_LABEL = `${Math.round(MAX_VIDEO_BYTES / (1024 * 1024))} MB`;
 
 const VIDEO_TYPES = Object.freeze({
   'video/mp4': 'mp4',
@@ -63,7 +66,7 @@ const validateVideo = (file, blob) => {
   }
 
   if (selectedSize != null && selectedSize > MAX_VIDEO_BYTES) {
-    throw new Error('Videos must be 25 MiB or smaller.');
+    throw new Error(`Videos must be ${MAX_VIDEO_LABEL} or smaller.`);
   }
 
   if (!Number.isFinite(blob.size) || blob.size <= 0) {
@@ -71,7 +74,7 @@ const validateVideo = (file, blob) => {
   }
 
   if (blob.size > MAX_VIDEO_BYTES) {
-    throw new Error('Videos must be 25 MiB or smaller.');
+    throw new Error(`Videos must be ${MAX_VIDEO_LABEL} or smaller.`);
   }
 
   return { contentType, extension };
@@ -83,7 +86,7 @@ export const uploadVideoToFirebase = async (file, onProgress) => {
   // Reject an oversized picker result before loading it into memory. Rules repeat
   // this check because all client-side validation can be bypassed.
   if (file.size != null && file.size > MAX_VIDEO_BYTES) {
-    throw new Error('Videos must be 25 MiB or smaller.');
+    throw new Error(`Videos must be ${MAX_VIDEO_LABEL} or smaller.`);
   }
 
   await requireEditor();

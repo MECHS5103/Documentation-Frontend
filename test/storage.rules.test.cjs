@@ -130,7 +130,7 @@ test('empty and oversized videos are denied', async () => {
   await assertFails(
     uploadBytes(
       ref(editorStorage, VALID_PATH),
-      new Uint8Array(25 * 1024 * 1024 + 1),
+      new Uint8Array(500 * 1024 * 1024 + 1),
       validMetadata
     )
   );
