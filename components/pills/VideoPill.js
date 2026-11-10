@@ -19,7 +19,7 @@ import { uploadVideoToFirebase } from '../../services/firebase';
 // they are shown with Drive's own player instead.
 export const driveFileId = (url) => {
   const text = String(url || '').trim();
-  if (!/^https:\/\/(drive|docs)\.google\.com\//i.test(text)) return null;
+  if (!/^https:\/\/(drive|docs|drive\.usercontent)\.google\.com\//i.test(text)) return null;
   const path = /\/file\/d\/([A-Za-z0-9_-]{10,})/.exec(text);
   if (path) return path[1];
   const query = /[?&]id=([A-Za-z0-9_-]{10,})/.exec(text);
@@ -76,7 +76,7 @@ export const VideoPill = ({
       setLinkError('Paste a link that starts with https://');
       return;
     }
-    if (/^https:\/\/(drive|docs)\.google\.com\//i.test(link) && !driveFileId(link)) {
+    if (/^https:\/\/(drive|docs|drive\.usercontent)\.google\.com\//i.test(link) && !driveFileId(link)) {
       setLinkError("That Google Drive link doesn't contain a file. Use the file's Share link.");
       return;
     }
