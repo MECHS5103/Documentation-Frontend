@@ -56,15 +56,19 @@ export const VideoPill = ({
   useEffect(() => {
     player.loop = gif;
     player.muted = gif;
-    if (gif && videoUrl && !driveId) {
-      try { player.play(); } catch (e) { /* not ready yet */ }
+    // Only start now if the video is already loaded; a fresh load starts it itself.
+    // Calling play() mid-load is what raises "play() request was interrupted".
+    if (gif && videoUrl && !driveId && player.status === 'readyToPlay') {
+      try { player.play(); } catch (e) { /* ignore */ }
     }
   }, [player, gif, videoUrl, driveId]);
 
   useEffect(() => {
     // Drive videos play in Drive's own embedded player, not in this one.
     player.replaceAsync(driveId ? null : videoUrl || null).then(() => {
-      if (gif && videoUrl && !driveId) player.play();
+      if (gif && videoUrl && !driveId) {
+        try { player.play(); } catch (e) { /* ignore */ }
+      }
     }).catch((error) => {
       console.error('Video load error:', error);
     });
