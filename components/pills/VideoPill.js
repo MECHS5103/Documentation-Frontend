@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Linking,
+  Platform,
   View,
   Text,
   TextInput,
@@ -11,6 +13,18 @@ import {
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as DocumentPicker from 'expo-document-picker';
 import { uploadVideoToFirebase } from '../../services/firebase';
+
+// Google Drive links come in several shapes (/file/d/ID/view, open?id=ID, uc?id=ID,
+// uc?export=download&id=ID). Drive will not stream them as a plain video file, so
+// they are shown with Drive's own player instead.
+export const driveFileId = (url) => {
+  const text = String(url || '').trim();
+  if (!/^https:\/\/(drive|docs)\.google\.com\//i.test(text)) return null;
+  const path = /\/file\/d\/([A-Za-z0-9_-]{10,})/.exec(text);
+  if (path) return path[1];
+  const query = /[?&]id=([A-Za-z0-9_-]{10,})/.exec(text);
+  return query ? query[1] : null;
+};
 
 export const VideoPill = ({
   title = '',
@@ -25,6 +39,9 @@ export const VideoPill = ({
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
+  const driveId = driveFileId(videoUrl);
+  const [linkDraft, setLinkDraft] = useState('');
+  const [linkError, setLinkError] = useState('');
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const player = useVideoPlayer(null, (createdPlayer) => {
@@ -34,10 +51,32 @@ export const VideoPill = ({
   });
 
   useEffect(() => {
-    player.replaceAsync(videoUrl || null).catch((error) => {
+    // Drive videos play in Drive's own embedded player, not in this one.
+    player.replaceAsync(driveId ? null : videoUrl || null).catch((error) => {
       console.error('Video load error:', error);
     });
-  }, [player, videoUrl]);
+  }, [player, videoUrl, driveId]);
+
+  const useLink = () => {
+    const link = linkDraft.trim();
+    if (!/^https:\/\/\S+$/i.test(link)) {
+      setLinkError('Paste a link that starts with https://');
+      return;
+    }
+    if (/^https:\/\/(drive|docs)\.google\.com\//i.test(link) && !driveFileId(link)) {
+      setLinkError("That Google Drive link doesn't contain a file. Use the file's Share link.");
+      return;
+    }
+    setLinkError('');
+    setLinkDraft('');
+    if (onUpdateVideoUrl) onUpdateVideoUrl(link);
+    if (setHasSaved) setHasSaved(false);
+  };
+
+  const removeVideo = () => {
+    if (onUpdateVideoUrl) onUpdateVideoUrl('');
+    if (setHasSaved) setHasSaved(false);
+  };
 
   const handlePickAndUploadVideo = async () => {
     try {
@@ -96,7 +135,23 @@ export const VideoPill = ({
 
       {/* Static 16:9 Pill Container */}
       <View style={styles.videoWrapper}>
-        {videoUrl ? (
+        {driveId ? (
+          Platform.OS === 'web' ? (
+            <iframe
+              title={title || 'Video'}
+              src={`https://drive.google.com/file/d/${driveId}/preview`}
+              allow="autoplay; fullscreen; picture-in-picture"
+              allowFullScreen
+              style={{ width: '100%', height: '100%', border: 0, borderRadius: 8 }}
+            />
+          ) : (
+            <TouchableOpacity
+              style={styles.uploadButton}
+              onPress={() => Linking.openURL(`https://drive.google.com/file/d/${driveId}/view`)}>
+              <Text style={styles.uploadButtonText}>Open video in Google Drive</Text>
+            </TouchableOpacity>
+          )
+        ) : videoUrl ? (
           <VideoView
             player={player}
             contentFit="contain"
@@ -124,6 +179,38 @@ export const VideoPill = ({
         )}
       </View>
 
+      {loggedIn && !uploading && (
+        <View style={styles.linkRow}>
+          <TextInput
+            style={styles.linkInput}
+            value={linkDraft}
+            onChangeText={(text) => {
+              setLinkDraft(text);
+              setLinkError('');
+            }}
+            onSubmitEditing={useLink}
+            placeholder={videoUrl ? 'Replace with a link (Google Drive or https://…)' : 'Or paste a link (Google Drive or https://…)'}
+            placeholderTextColor="#A0AEC0"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity style={styles.smallButton} onPress={useLink}>
+            <Text style={styles.smallButtonText}>Use link</Text>
+          </TouchableOpacity>
+          {videoUrl ? (
+            <TouchableOpacity style={[styles.smallButton, styles.removeButton]} onPress={removeVideo}>
+              <Text style={styles.smallButtonText}>Remove</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      )}
+      {loggedIn && linkError ? <Text style={styles.linkError}>{linkError}</Text> : null}
+      {loggedIn && driveId ? (
+        <Text style={styles.linkHint}>
+          Google Drive video: the file must be shared as "Anyone with the link can view".
+        </Text>
+      ) : null}
+
       {/* Caption */}
       <View style={styles.captionContainer}>
         {loggedIn ? (
@@ -147,6 +234,29 @@ export const VideoPill = ({
 };
 
 const styles = StyleSheet.create({
+  linkRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  linkInput: {
+    flex: 1,
+    minWidth: 0,
+    borderWidth: 1,
+    borderColor: '#CBD5E0',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 13,
+    color: '#1A202C',
+  },
+  smallButton: {
+    marginLeft: 6,
+    backgroundColor: '#207ADB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  removeButton: { backgroundColor: '#C53030' },
+  smallButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: 'bold' },
+  linkError: { color: '#C53030', fontSize: 12, marginTop: 4 },
+  linkHint: { color: '#718096', fontSize: 12, marginTop: 4 },
   container: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,

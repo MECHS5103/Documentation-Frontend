@@ -907,7 +907,7 @@ function migrateMediaToMarketing() {
 
 function replaceVideoUrl(oldFirebaseUrl, driveFileId) {
   var PAGES_SPREADSHEET_ID = "159ATSwxFAs1NEoyuTmnSrpDPMCHZUaQK8SMT1Ayf1X4";
-  var newDriveUrl = "https://drive.google.com/uc?export=download&id=" + driveFileId;
+  var newDriveUrl = "https://drive.google.com/file/d/" + driveFileId + "/view";
 
   var ss = SpreadsheetApp.openById(PAGES_SPREADSHEET_ID);
   var sheets = ss.getSheets();
