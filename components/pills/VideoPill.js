@@ -42,6 +42,12 @@ export const VideoPill = ({
   const isMobile = width < 768;
 
   const driveId = driveFileId(videoUrl);
+  // Drive's embedded player can't loop or hide its controls, so in GIF mode a Drive
+  // file is streamed straight into the normal player instead (fine for short, small clips).
+  const driveEmbed = !!driveId && !gif;
+  const playUrl = driveId && gif
+    ? `https://drive.google.com/uc?export=download&id=${driveId}`
+    : videoUrl;
   const [linkDraft, setLinkDraft] = useState('');
   const [linkError, setLinkError] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -58,21 +64,21 @@ export const VideoPill = ({
     player.muted = gif;
     // Only start now if the video is already loaded; a fresh load starts it itself.
     // Calling play() mid-load is what raises "play() request was interrupted".
-    if (gif && videoUrl && !driveId && player.status === 'readyToPlay') {
+    if (gif && playUrl && !driveEmbed && player.status === 'readyToPlay') {
       try { player.play(); } catch (e) { /* ignore */ }
     }
-  }, [player, gif, videoUrl, driveId]);
+  }, [player, gif, playUrl, driveEmbed]);
 
   useEffect(() => {
     // Drive videos play in Drive's own embedded player, not in this one.
-    player.replaceAsync(driveId ? null : videoUrl || null).then(() => {
-      if (gif && videoUrl && !driveId) {
+    player.replaceAsync(driveEmbed ? null : playUrl || null).then(() => {
+      if (gif && playUrl && !driveEmbed) {
         try { player.play(); } catch (e) { /* ignore */ }
       }
     }).catch((error) => {
       console.error('Video load error:', error);
     });
-  }, [player, videoUrl, driveId]);
+  }, [player, playUrl, driveEmbed, gif]);
 
   const useLink = () => {
     const link = linkDraft.trim();
@@ -152,7 +158,7 @@ export const VideoPill = ({
 
       {/* Static 16:9 Pill Container */}
       <View style={styles.videoWrapper}>
-        {driveId ? (
+        {driveEmbed ? (
           Platform.OS === 'web' ? (
             <iframe
               title={title || 'Video'}
@@ -210,7 +216,9 @@ export const VideoPill = ({
         </TouchableOpacity>
       ) : null}
       {loggedIn && driveId && gif ? (
-        <Text style={styles.linkError}>GIF mode can't loop Google Drive videos. Upload the file to the site, or use a direct .mp4 link.</Text>
+        <Text style={styles.linkHint}>
+          GIF mode streams the Drive file directly, which works best for short, small clips (under ~100 MB). Larger files may not play.
+        </Text>
       ) : null}
       {loggedIn && !uploading && (
         <View style={styles.linkRow}>
