@@ -30,6 +30,8 @@ export const VideoPill = ({
   title = '',
   videoUrl = '',
   caption = '',
+  gif = false,
+  onUpdateGif,
   onUpdateTitle,
   onUpdateCaption,
   onUpdateVideoUrl,
@@ -50,9 +52,20 @@ export const VideoPill = ({
     createdPlayer.volume = 1;
   });
 
+  // GIF mode: silent, looping, starts by itself, no controls.
+  useEffect(() => {
+    player.loop = gif;
+    player.muted = gif;
+    if (gif && videoUrl && !driveId) {
+      try { player.play(); } catch (e) { /* not ready yet */ }
+    }
+  }, [player, gif, videoUrl, driveId]);
+
   useEffect(() => {
     // Drive videos play in Drive's own embedded player, not in this one.
-    player.replaceAsync(driveId ? null : videoUrl || null).catch((error) => {
+    player.replaceAsync(driveId ? null : videoUrl || null).then(() => {
+      if (gif && videoUrl && !driveId) player.play();
+    }).catch((error) => {
       console.error('Video load error:', error);
     });
   }, [player, videoUrl, driveId]);
@@ -155,7 +168,7 @@ export const VideoPill = ({
           <VideoView
             player={player}
             contentFit="contain"
-            nativeControls
+            nativeControls={!gif}
             style={styles.videoPlayer}
           />
         ) : (
@@ -179,6 +192,22 @@ export const VideoPill = ({
         )}
       </View>
 
+      {loggedIn && videoUrl ? (
+        <TouchableOpacity
+          style={styles.gifToggle}
+          onPress={() => {
+            if (onUpdateGif) onUpdateGif(!gif);
+            if (setHasSaved) setHasSaved(false);
+          }}>
+          <View style={[styles.gifBox, gif && styles.gifBoxOn]}>
+            {gif ? <Text style={styles.gifTick}>✓</Text> : null}
+          </View>
+          <Text style={styles.gifLabel}>GIF mode (loops silently, no controls)</Text>
+        </TouchableOpacity>
+      ) : null}
+      {loggedIn && driveId && gif ? (
+        <Text style={styles.linkError}>GIF mode can't loop Google Drive videos. Upload the file to the site, or use a direct .mp4 link.</Text>
+      ) : null}
       {loggedIn && !uploading && (
         <View style={styles.linkRow}>
           <TextInput
@@ -234,6 +263,11 @@ export const VideoPill = ({
 };
 
 const styles = StyleSheet.create({
+  gifToggle: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  gifBox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: '#A0AEC0', alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  gifBoxOn: { backgroundColor: '#207ADB', borderColor: '#207ADB' },
+  gifTick: { color: '#FFFFFF', fontSize: 12, fontWeight: 'bold' },
+  gifLabel: { color: '#4A5568', fontSize: 13 },
   linkRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
   linkInput: {
     flex: 1,

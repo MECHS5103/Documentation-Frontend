@@ -88,11 +88,13 @@ function doGet(e) {
         if (type === 'VideoPill' || type === 'Video') {
           var titleVal = '';
           var captionVal = '';
+          var gifVal = false;
 
           try {
             var parsedJson = JSON.parse(colB);
             titleVal = parsedJson.title || '';
             captionVal = parsedJson.caption || '';
+            gifVal = parsedJson.gif === true;
           } catch (e) {
             titleVal = colB || '';
           }
@@ -101,6 +103,7 @@ function doGet(e) {
             type: 'VideoPill',
             title: titleVal,
             caption: captionVal,
+            gif: gifVal,
             videoUrl: colC || ''
           });
         } else if (type === 'SheetsPill') {
@@ -336,6 +339,7 @@ function validateSavePayload(data) {
     if (type === "VideoPill" || type === "Video") {
       normalized.title = requireString(item.title || "", "video.title", 300, true);
       normalized.caption = requireString(item.caption || "", "video.caption", 2000, true);
+      normalized.gif = item.gif === true;
       normalized.videoUrl = requireString(
         item.videoUrl || item.url || "",
         "video.videoUrl",
@@ -519,7 +523,7 @@ function buildPageRows(category, section, lesson, pageElements, version) {
     if (item.type === "VideoPill" || item.type === "Video") {
       rows.push([
         item.type,
-        JSON.stringify({ title: item.title || "", caption: item.caption || "" }),
+        JSON.stringify({ title: item.title || "", caption: item.caption || "", gif: item.gif === true }),
         item.videoUrl || "",
         ""
       ]);

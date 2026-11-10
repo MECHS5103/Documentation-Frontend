@@ -936,6 +936,8 @@ export default function App() {
                         title={item.title || ''}
                         videoUrl={item.videoUrl || item.url || null}
                         caption={item.caption || ''}
+                        gif={item.gif === true}
+                        onUpdateGif={(value) => handleUpdateElementField(index, 'gif', value)}
                         onUpdateTitle={(newTitle) =>
                           handleUpdateElementField(index, 'title', newTitle)
                         }
