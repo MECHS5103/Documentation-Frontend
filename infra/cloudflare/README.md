@@ -126,4 +126,4 @@ Editor sign-in is a full-page redirect that runs through this site's own domain,
 4. Firebase console → Authentication → Settings → Authorized domains: confirm `docs.team5103.com` is listed.
 5. Set `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=docs.team5103.com` in `.env`, rebuild, and deploy the site.
 
-Check: `https://docs.team5103.com/__/firebase/init.json` should return JSON. Rollback: set the auth domain back to `robotics-documentation.firebaseapp.com` and rebuild.
+Check: `https://docs.team5103.com/__/auth/handler` should not show Firebase's "Site Not Found" page (a blank page or a missing-parameters message is fine). `/__/firebase/init.json` only works if a Firebase Hosting site is deployed, so it is not a valid test here. Rollback: set the auth domain back to `robotics-documentation.firebaseapp.com` and rebuild.
