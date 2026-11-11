@@ -16,6 +16,7 @@ import { postApi } from './services/api';
 import {
   getEditorIdToken,
   observeEditorAuthState,
+  completeRedirectSignIn,
   signInEditor,
   signOutEditor,
 } from './services/auth';
@@ -90,6 +91,13 @@ export default function App() {
   const [lastName, setLastName] = useState('');
 
   const [pageCredits, setPageCredits] = useState([]);
+
+  useEffect(() => {
+    completeRedirectSignIn().catch((error) => {
+      console.error('Sign-in error:', error);
+      alert(error.message || 'Unable to sign in.');
+    });
+  }, []);
 
   useEffect(() => {
     return observeEditorAuthState((user) => {

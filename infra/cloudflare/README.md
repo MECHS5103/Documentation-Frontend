@@ -115,3 +115,15 @@ Before the first apply, save the reviewed plan and record the current Cloudflare
 For an HSTS incident, set `enable_hsts = false` and apply the reviewed change to disable the header. Browsers that cached HSTS will retain it until the previously advertised max-age expires, which is why the rollout begins at 300 seconds.
 
 To roll back the documentation response transform without deleting its ruleset, set `enable_security_headers = false`, review the plan, and apply it. Re-enable individual headers only after identifying the incompatible policy. Because the CSP is report-only, CSP violations alone do not block application behavior.
+
+## Sign-in through docs.team5103.com (for networks that block firebaseapp.com)
+
+Editor sign-in is a full-page redirect that runs through this site's own domain, so a school network only has to allow `docs.team5103.com` plus Google's own sign-in pages.
+
+1. Cloudflare dashboard → Workers & Pages → Create Worker, paste `auth-proxy-worker.js`, deploy.
+2. Worker → Settings → Domains & Routes → add route `docs.team5103.com/__/*`.
+3. Google Cloud Console → APIs & Services → Credentials → "Web client (auto created by Google Service)" → add the Authorized redirect URI `https://docs.team5103.com/__/auth/handler`.
+4. Firebase console → Authentication → Settings → Authorized domains: confirm `docs.team5103.com` is listed.
+5. Set `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=docs.team5103.com` in `.env`, rebuild, and deploy the site.
+
+Check: `https://docs.team5103.com/__/firebase/init.json` should return JSON. Rollback: set the auth domain back to `robotics-documentation.firebaseapp.com` and rebuild.
