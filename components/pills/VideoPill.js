@@ -58,27 +58,36 @@ export const VideoPill = ({
     createdPlayer.volume = 1;
   });
 
-  // GIF mode: silent, looping, starts by itself, no controls.
+  // GIF mode: silent, looping, starts by itself, no controls. Playback starts only
+  // once the player reports it has data, because play() during a load is dropped.
+  const [playerError, setPlayerError] = useState('');
+  useEffect(() => {
+    const sub = player.addListener('statusChange', ({ status, error }) => {
+      if (status === 'error') {
+        setPlayerError((error && error.message) || 'The video could not be loaded.');
+      } else {
+        setPlayerError('');
+      }
+      if (status === 'readyToPlay' && gif) {
+        try { player.play(); } catch (e) { /* ignore */ }
+      }
+    });
+    if (gif && player.status === 'readyToPlay') {
+      try { player.play(); } catch (e) { /* ignore */ }
+    }
+    return () => sub.remove();
+  }, [player, gif]);
   useEffect(() => {
     player.loop = gif;
     player.muted = gif;
-    // Only start now if the video is already loaded; a fresh load starts it itself.
-    // Calling play() mid-load is what raises "play() request was interrupted".
-    if (gif && playUrl && !driveEmbed && player.status === 'readyToPlay') {
-      try { player.play(); } catch (e) { /* ignore */ }
-    }
   }, [player, gif, playUrl, driveEmbed]);
 
   useEffect(() => {
     // Drive videos play in Drive's own embedded player, not in this one.
-    player.replaceAsync(driveEmbed ? null : playUrl || null).then(() => {
-      if (gif && playUrl && !driveEmbed) {
-        try { player.play(); } catch (e) { /* ignore */ }
-      }
-    }).catch((error) => {
+    player.replaceAsync(driveEmbed ? null : playUrl || null).catch((error) => {
       console.error('Video load error:', error);
     });
-  }, [player, playUrl, driveEmbed, gif]);
+  }, [player, playUrl, driveEmbed]);
 
   const useLink = () => {
     const link = linkDraft.trim();
@@ -214,6 +223,9 @@ export const VideoPill = ({
           </View>
           <Text style={styles.gifLabel}>GIF mode (loops silently, no controls)</Text>
         </TouchableOpacity>
+      ) : null}
+      {loggedIn && playerError ? (
+        <Text style={styles.linkError}>Video problem: {playerError}</Text>
       ) : null}
       {loggedIn && driveId && gif ? (
         <Text style={styles.linkHint}>
